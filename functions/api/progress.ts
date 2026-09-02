@@ -3,6 +3,8 @@ import { requireTrustedContext } from './_auth'
 import { tryCompleteEnrollment } from './_completion'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
+const MAX_RESUME_POSITION_SECONDS = 24 * 60 * 60
+
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const context = requireTrustedContext(env, request)
   if (context instanceof Response) return context
@@ -45,8 +47,8 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
   if (!Number.isFinite(requestedProgress) || requestedProgress < 0 || requestedProgress > 100) {
     return json({ error: 'progressPercent deve estar entre 0 e 100' }, 400)
   }
-  if (!Number.isFinite(requestedPosition) || requestedPosition < 0) {
-    return json({ error: 'lastPositionSeconds deve ser zero ou positivo' }, 400)
+  if (!Number.isFinite(requestedPosition) || requestedPosition < 0 || requestedPosition > MAX_RESUME_POSITION_SECONDS) {
+    return json({ error: 'lastPositionSeconds deve estar entre 0 e 86400' }, 400)
   }
 
   const enrollment = await db.prepare(`
@@ -58,7 +60,7 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
   if (String(enrollment.status) === 'cancelled') return json({ error: 'Matrícula cancelada não permite registrar progresso' }, 403)
 
   const lesson = await db.prepare(`
-    SELECT id, duration_minutes
+    SELECT id, content_type
     FROM academy_course_lessons
     WHERE tenant_id=? AND course_id=? AND id=?
     LIMIT 1
@@ -73,10 +75,7 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
   `).bind(context.tenantId, context.userId, courseId, lessonId).first()
 
   const progressPercent = Math.max(Number(current?.progress_percent ?? 0), Math.round(requestedProgress))
-  const durationSeconds = Math.max(0, Number(lesson.duration_minutes ?? 0) * 60)
-  const lastPositionSeconds = durationSeconds > 0
-    ? Math.min(Math.round(requestedPosition), durationSeconds)
-    : Math.round(requestedPosition)
+  const lastPositionSeconds = Math.round(requestedPosition)
   const now = new Date().toISOString()
   const completedAt = progressPercent >= 100
     ? String(current?.completed_at ?? now)

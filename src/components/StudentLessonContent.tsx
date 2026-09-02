@@ -1,3 +1,4 @@
+import { MediaLessonPlayer } from './MediaLessonPlayer'
 import { ServerQuizAttemptPanel } from '../pages/ServerQuizAttemptPanel'
 import type { ServerAttemptSubmission } from '../services/studentAssessmentApi'
 import type { StudentDeliveredLesson } from '../services/studentCourseApi'
@@ -12,25 +13,25 @@ function ExternalResource({ url, label }: { url?: string; label: string }) {
 }
 
 export function StudentLessonContent({
+  courseId,
   lesson,
   onAssessmentFinished,
+  onMediaCompleted,
 }: {
+  courseId: string
   lesson: StudentDeliveredLesson
   onAssessmentFinished?: (result: ServerAttemptSubmission) => void | Promise<void>
+  onMediaCompleted?: () => void | Promise<void>
 }) {
   const content = lesson.content ?? {}
 
   if (lesson.contentType === 'video' || lesson.contentType === 'audio') {
     return (
-      <div className="videoPlaceholder">
-        <strong>{lesson.title}</strong>
-        <span>
-          {content.providerRef
-            ? `Mídia preparada em ${content.provider || 'provedor da Academy'} · referência ${content.providerRef}`
-            : 'Mídia preparada para integração com o provedor configurado da Academy.'}
-        </span>
-        <ExternalResource url={content.externalUrl} label="Abrir mídia externa autorizada" />
-      </div>
+      <MediaLessonPlayer
+        courseId={courseId}
+        lesson={lesson}
+        onCompleted={onMediaCompleted}
+      />
     )
   }
 

@@ -1,4 +1,5 @@
 import { requireTrustedContext } from './_auth'
+import { publicMediaContent } from './_media'
 import { dbOr503, json, safeJson, type Env } from './_shared'
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
@@ -68,15 +69,21 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
     const moduleId = String(row.module_id)
     const list = lessonsByModule.get(moduleId) ?? []
+    const contentType = String(row.content_type)
+    const rawContent = safeJson(row.content_json, {})
+    const content = ['video', 'audio'].includes(contentType)
+      ? publicMediaContent(rawContent)
+      : rawContent
+
     list.push({
       id: lessonId,
       moduleId,
       title: row.title,
-      contentType: row.content_type,
+      contentType,
       durationMinutes: Number(row.duration_minutes ?? 0),
       required,
       position: Number(row.position ?? 0),
-      content: safeJson(row.content_json, {}),
+      content,
       progressPercent: Number(progressRow?.progress_percent ?? 0),
       lastPositionSeconds: Number(progressRow?.last_position_seconds ?? 0),
       completedAt: progressRow?.completed_at ?? null,
