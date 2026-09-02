@@ -11,30 +11,24 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const scopeDenied = requireCompanyScope(auth, companyId)
   if (scopeDenied) return scopeDenied
 
-  const company = await db.prepare(`
-    SELECT id, name, status FROM academy_companies
-    WHERE tenant_id=? AND id=? LIMIT 1
-  `).bind(auth.tenantId, companyId).first()
+  const company = await db.prepare(`SELECT id, name, status FROM academy_companies WHERE tenant_id=? AND id=? LIMIT 1`)
+    .bind(auth.tenantId, companyId).first()
   if (!company) return json({ error: 'Empresa não encontrada neste tenant' }, 404)
 
-  const members = await db.prepare(`
-    SELECT COUNT(*) AS total
-    FROM academy_company_members
-    WHERE tenant_id=? AND company_id=? AND status='active'
-  `).bind(auth.tenantId, companyId).first()
+  const members = await db.prepare(`SELECT COUNT(*) AS total FROM academy_company_members WHERE tenant_id=? AND company_id=? AND status='active'`)
+    .bind(auth.tenantId, companyId).first()
 
   const assignmentStats = await db.prepare(`
     SELECT
       COUNT(*) AS total,
       SUM(CASE WHEN a.required=1 AND a.status!='cancelled' THEN 1 ELSE 0 END) AS required_total,
       SUM(CASE WHEN a.status='cancelled' THEN 1 ELSE 0 END) AS cancelled_total,
-      SUM(CASE WHEN a.status!='cancelled' AND e.status='completed' THEN 1 ELSE 0 END) AS completed_total,
-      SUM(CASE WHEN a.status!='cancelled' AND COALESCE(e.status,'')!='completed' AND a.due_at IS NOT NULL AND datetime(a.due_at) < datetime('now') THEN 1 ELSE 0 END) AS overdue_total
+      SUM(CASE WHEN a.status='completed' OR lc.status='completed' THEN 1 ELSE 0 END) AS completed_total,
+      SUM(CASE WHEN a.status NOT IN ('cancelled','completed') AND COALESCE(lc.status,'')!='completed'
+        AND a.due_at IS NOT NULL AND datetime(a.due_at) < datetime('now') THEN 1 ELSE 0 END) AS overdue_total
     FROM academy_course_assignments a
-    JOIN academy_company_members m
-      ON m.tenant_id=a.tenant_id AND m.id=a.member_id AND m.company_id=a.company_id
-    LEFT JOIN academy_enrollments e
-      ON e.tenant_id=a.tenant_id AND e.course_id=a.course_id AND e.student_id=m.user_id
+    LEFT JOIN academy_learning_cycles lc
+      ON lc.tenant_id=a.tenant_id AND lc.id=a.learning_cycle_id
     WHERE a.tenant_id=? AND a.company_id=?
   `).bind(auth.tenantId, companyId).first()
 
@@ -45,7 +39,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       ON m.tenant_id=a.tenant_id AND m.id=a.member_id AND m.company_id=a.company_id
     JOIN academy_certificates cert
       ON cert.tenant_id=a.tenant_id AND cert.course_id=a.course_id
-      AND cert.student_id=m.user_id AND cert.status='valid'
+      AND cert.student_id=m.user_id AND cert.cycle_id=a.learning_cycle_id
+      AND cert.status='valid'
     WHERE a.tenant_id=? AND a.company_id=? AND a.status!='cancelled'
   `).bind(auth.tenantId, companyId).first()
 
