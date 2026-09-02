@@ -117,6 +117,26 @@ export function StudentAssessmentPlayerPage() {
     }
   }
 
+  async function handleMediaCompleted(lesson: StudentDeliveredLesson) {
+    if (!delivery) return
+    try {
+      const refreshed = await loadCourse(delivery.course.id)
+      const allLessons = refreshed.modules.flatMap((module) => module.lessons)
+      const currentIndex = allLessons.findIndex((item) => item.id === lesson.id)
+      const nextLesson = allLessons[currentIndex + 1]
+      if (nextLesson) setActiveLessonId(nextLesson.id)
+      else if (refreshed.completion.assessmentRequired && refreshed.completion.quizId) setActiveLessonId(assessmentLessonId)
+
+      if (refreshed.enrollment.status === 'completed') {
+        setMessage('Curso concluído. A certificação foi processada pelo backend.')
+      } else {
+        setMessage('Mídia concluída e progresso registrado.')
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Mídia concluída, mas não foi possível atualizar o curso.')
+    }
+  }
+
   if (loadingServer) {
     return <section className="panel"><h2>Experiência do aluno</h2><p>Verificando matrículas e progresso...</p></section>
   }
@@ -138,6 +158,9 @@ export function StudentAssessmentPlayerPage() {
   const assessmentAvailable = delivery.completion.assessmentRequired && Boolean(delivery.completion.quizId)
   const activeLessonIsAssessment = activeLesson
     ? activeLesson.contentType === 'quiz' || activeLesson.contentType === 'exam'
+    : false
+  const activeLessonIsMedia = activeLesson
+    ? activeLesson.contentType === 'video' || activeLesson.contentType === 'audio'
     : false
 
   return (
@@ -178,7 +201,9 @@ export function StudentAssessmentPlayerPage() {
 
             {!assessmentActive && activeLesson && (
               <StudentLessonContent
+                courseId={delivery.course.id}
                 lesson={activeLesson}
+                onMediaCompleted={() => handleMediaCompleted(activeLesson)}
                 onAssessmentFinished={async (result) => {
                   if (result.status === 'approved') {
                     await completeServerLesson(activeLesson)
@@ -201,7 +226,7 @@ export function StudentAssessmentPlayerPage() {
                   <p>Retomada registrada em {Math.floor(activeLesson.lastPositionSeconds / 60)} min {activeLesson.lastPositionSeconds % 60}s.</p>
                 )}
               </div>
-              {!activeLessonIsAssessment && (
+              {!activeLessonIsAssessment && !activeLessonIsMedia && (
                 <button
                   className="primary"
                   disabled={activeLesson.progressPercent >= 100 || delivery.enrollment.status === 'completed'}
@@ -209,6 +234,9 @@ export function StudentAssessmentPlayerPage() {
                 >
                   {activeLesson.progressPercent >= 100 ? 'Aula concluída' : 'Marcar como concluída'}
                 </button>
+              )}
+              {activeLessonIsMedia && activeLesson.progressPercent < 100 && (
+                <small>A conclusão desta aula é registrada automaticamente ao terminar a mídia.</small>
               )}
             </section>
           )}
