@@ -13,12 +13,18 @@ export function AssessmentReviewPage() {
   const [serverQueue, setServerQueue] = useState<ReviewQueueItem[] | null>(null)
   const [loadingServer, setLoadingServer] = useState(true)
   const [serverMessage, setServerMessage] = useState('')
+  const [filterQuizId, setFilterQuizId] = useState('')
+  const [filterStudentId, setFilterStudentId] = useState('')
   const pending = attempts.filter((item) => item.status === 'manual_review')
 
   async function refreshServerQueue() {
     setLoadingServer(true)
     try {
-      const items = await loadReviewQueue()
+      const items = await loadReviewQueue({
+        quizId: filterQuizId || undefined,
+        studentId: filterStudentId || undefined,
+        limit: 50,
+      })
       setServerQueue(items)
       setServerMessage('')
     } catch {
@@ -30,6 +36,8 @@ export function AssessmentReviewPage() {
 
   useEffect(() => {
     void refreshServerQueue()
+    // A primeira leitura usa os filtros vazios; alterações são aplicadas pelo botão.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function reviewLocal(attemptId: string) {
@@ -40,8 +48,8 @@ export function AssessmentReviewPage() {
     const manualTotalPoints = openQuestions.reduce((sum, question) => sum + question.points, 0)
     const pointsInput = window.prompt(`Pontuação manual de 0 a ${manualTotalPoints}`, String(manualTotalPoints))
     if (pointsInput == null) return
-    const reviewer = window.prompt('Responsável pela revisão', 'Responsável técnico') ?? 'Responsável técnico'
-    const note = window.prompt('Observação da revisão', 'Resposta avaliada conforme critérios do treinamento.') ?? ''
+    const reviewer = window.prompt('Responsável pela revisão local', 'Responsável técnico') ?? 'Responsável técnico'
+    const note = window.prompt('Observação da revisão local', 'Resposta avaliada conforme critérios do treinamento.') ?? ''
 
     const reviewed = applyManualReview(
       quiz,
@@ -78,14 +86,17 @@ export function AssessmentReviewPage() {
       reviews.push({ questionId, awardedPoints, note })
     }
 
-    const reviewerId = window.prompt('ID do revisor', 'DEMO-REVIEWER-001')?.trim()
-    if (!reviewerId) return
-    const reviewerName = window.prompt('Nome do revisor', 'Responsável técnico')?.trim() || reviewerId
     const reviewNote = window.prompt('Observação geral da revisão', '') ?? ''
 
     try {
-      const result = await submitManualReview(item.id, { reviewerId, reviewerName, reviewNote, reviews })
-      setServerMessage(`Revisão concluída: ${result.data.status === 'approved' ? 'aprovado' : 'reprovado'} com ${result.data.finalPercentage}%.`)
+      const result = await submitManualReview(item.id, { reviewNote, reviews })
+      const outcome = result.data.status === 'approved' ? 'aprovado' : 'reprovado'
+      const certificateText = result.data.certificate?.issued
+        ? ' Certificado emitido automaticamente.'
+        : result.data.status === 'approved' && result.data.certificate?.reason
+          ? ` Certificado pendente: ${result.data.certificate.reason}.`
+          : ''
+      setServerMessage(`Revisão concluída: ${outcome} com ${result.data.finalPercentage}%.${certificateText}`)
       await refreshServerQueue()
     } catch (error) {
       setServerMessage(error instanceof Error ? error.message : 'Não foi possível concluir a revisão.')
@@ -99,24 +110,43 @@ export function AssessmentReviewPage() {
       <div className="pageHeader">
         <div>
           <h1>Revisão de avaliações</h1>
-          <p>Correção manual auditável de respostas abertas e consolidação da nota final no backend.</p>
+          <p>Correção manual auditável, isolada por tenant e consolidada no backend.</p>
         </div>
       </div>
 
       <div className="reviewCard" style={{ marginBottom: 14 }}>
         <strong>{loadingServer ? 'Verificando backend...' : usingServer ? 'Fila conectada ao backend' : 'Modo local de desenvolvimento'}</strong>
         <p>{usingServer
-          ? 'As notas desta fila são enviadas ao endpoint server-side e o navegador não calcula o resultado final autoritativo.'
+          ? 'A identidade do revisor e o tenant são definidos pela camada confiável da iFarm. O navegador envia apenas a correção por questão.'
           : 'O backend não está disponível neste ambiente; a tela mantém o fluxo local para desenvolvimento e validação visual.'}
         </p>
         {serverMessage && <p><strong>{serverMessage}</strong></p>}
       </div>
 
+      {usingServer && (
+        <div className="reviewCard" style={{ marginBottom: 14 }}>
+          <strong>Filtros da fila</strong>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginTop: 12 }}>
+            <input
+              value={filterQuizId}
+              onChange={(event) => setFilterQuizId(event.target.value)}
+              placeholder="Quiz ID"
+            />
+            <input
+              value={filterStudentId}
+              onChange={(event) => setFilterStudentId(event.target.value)}
+              placeholder="Aluno ID"
+            />
+            <button className="primary" onClick={() => void refreshServerQueue()}>Aplicar filtros</button>
+          </div>
+        </div>
+      )}
+
       <div className="reviewList">
         {usingServer && serverQueue.length === 0 && (
           <div className="reviewCard">
             <strong>Nenhuma avaliação aguardando revisão.</strong>
-            <p>A fila server-side está vazia.</p>
+            <p>A fila server-side está vazia para os filtros atuais.</p>
           </div>
         )}
 
@@ -126,7 +156,7 @@ export function AssessmentReviewPage() {
             <article className="reviewCard" key={item.id}>
               <div className="reviewCardHead">
                 <div>
-                  <small>Aluno {item.studentId} · Tentativa {item.attemptNumber}</small>
+                  <small>{item.studentName || `Aluno ${item.studentId}`} · Tentativa {item.attemptNumber}</small>
                   <h3>Quiz {item.quizId}</h3>
                   <small>Política v{item.policyVersion ?? 'legada'} · Nota mínima {item.minimumScore}%</small>
                 </div>
