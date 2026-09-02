@@ -59,6 +59,85 @@ export interface CompanyTrainingSummary {
   completionPercent: number
 }
 
+export interface CompanyLearningPathCourse {
+  id?: string
+  courseId: string
+  courseTitle?: string
+  courseStatus?: string
+  required: boolean
+  renewalMonths?: number | null
+  position?: number
+}
+
+export interface CompanyLearningPathRecord {
+  id: string
+  companyId: string
+  name: string
+  description: string
+  status: 'active' | 'inactive'
+  defaultRenewalMonths?: number | null
+  assignments: number
+  courses: CompanyLearningPathCourse[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CompanyPathAssignmentRecord {
+  id: string
+  companyId: string
+  pathId: string
+  pathName: string
+  memberId: string
+  userId: string
+  displayName: string
+  jobTitle?: string | null
+  status: 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+  effectiveStatus: 'assigned' | 'in_progress' | 'completed' | 'cancelled'
+  dueAt?: string | null
+  overdue: boolean
+  progressPercent: number
+  completedCourses: number
+  requiredCourses: number
+  courses: Array<{
+    courseId: string
+    courseTitle: string
+    required: boolean
+    renewalMonths?: number | null
+    progressPercent: number
+    completed: boolean
+  }>
+  assignedAt: string
+}
+
+export type CompanyRenewalState = 'due' | 'upcoming' | 'not_due'
+
+export interface CompanyRenewalRecord {
+  assignmentId: string
+  companyId: string
+  memberId: string
+  userId: string
+  displayName: string
+  employeeCode?: string | null
+  jobTitle?: string | null
+  courseId: string
+  courseTitle: string
+  completedAt: string
+  renewalMonths: number
+  renewalCycle: number
+  renewalState: CompanyRenewalState
+  renewalDueAt: string
+  daysRemaining: number
+  certificateCode?: string | null
+  certificateStatus?: string | null
+  source: string
+}
+
+export interface CompanyRenewalResponse {
+  data: CompanyRenewalRecord[]
+  summary: { configured: number; due: number; upcoming: number; notDue: number }
+  policy: { upcomingWindowDays: number; note: string }
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -105,4 +184,45 @@ export async function loadCompanyTrainingSummary(companyId: string): Promise<Com
 
 export async function loadEnterpriseCatalog(): Promise<CatalogCourse[]> {
   return loadCatalog()
+}
+
+export async function loadCompanyLearningPaths(companyId: string): Promise<CompanyLearningPathRecord[]> {
+  return (await request<{ data: CompanyLearningPathRecord[] }>(`/api/company-learning-paths?companyId=${encodeURIComponent(companyId)}`)).data
+}
+
+export async function createCompanyLearningPath(input: {
+  companyId: string
+  name: string
+  description?: string
+  defaultRenewalMonths?: number | null
+  courses: Array<{ courseId: string; required: boolean; renewalMonths?: number | null }>
+}) {
+  return request<{ data: CompanyLearningPathRecord }>('/api/company-learning-paths', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function inactivateCompanyLearningPath(pathId: string) {
+  return request<{ data: { id: string; status: 'inactive'; updatedAt?: string }; idempotent?: boolean }>(
+    `/api/company-learning-paths?pathId=${encodeURIComponent(pathId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export async function loadCompanyPathAssignments(companyId: string): Promise<CompanyPathAssignmentRecord[]> {
+  return (await request<{ data: CompanyPathAssignmentRecord[] }>(`/api/company-path-assignments?companyId=${encodeURIComponent(companyId)}`)).data
+}
+
+export async function assignCompanyLearningPath(input: { companyId: string; pathId: string; memberId: string; dueAt?: string }) {
+  return request<{ data: CompanyPathAssignmentRecord; idempotent?: boolean }>('/api/company-path-assignments', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function loadCompanyRenewals(companyId: string, state?: CompanyRenewalState): Promise<CompanyRenewalResponse> {
+  const query = new URLSearchParams({ companyId })
+  if (state) query.set('state', state)
+  return request<CompanyRenewalResponse>(`/api/company-renewals?${query.toString()}`)
 }

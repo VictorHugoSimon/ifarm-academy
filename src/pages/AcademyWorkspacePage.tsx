@@ -7,10 +7,11 @@ import { CertificateEligibilityPage } from './CertificateEligibilityPage'
 import { CoursePublicationPage } from './CoursePublicationPage'
 import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import { EnterpriseTrainingPage } from './EnterpriseTrainingPage'
+import { EnterprisePathsPage } from './EnterprisePathsPage'
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'student' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'student' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -18,6 +19,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['publication', 'Publicação'],
   ['catalog', 'Catálogo e matrículas'],
   ['enterprise', 'Área empresarial'],
+  ['enterprise-paths', 'Trilhas empresariais'],
   ['student', 'Experiência do aluno'],
   ['review', 'Revisão manual'],
   ['certificate', 'Certificação'],
@@ -32,7 +34,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>iFarm Academy · Núcleo acadêmico</small>
           <h1>Operação integrada do curso</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas empresariais, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -47,6 +49,7 @@ export function AcademyWorkspacePage() {
       {view === 'publication' && <CoursePublicationPage />}
       {view === 'catalog' && <EnrollmentCatalogPage />}
       {view === 'enterprise' && <EnterpriseTrainingPage />}
+      {view === 'enterprise-paths' && <EnterprisePathsPage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
       {view === 'review' && <AssessmentReviewPage />}
       {view === 'certificate' && <CertificateEligibilityPage />}
