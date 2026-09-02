@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ContentType } from '../domain/academy'
 import type { BuilderLesson, CourseBuilderState } from '../domain/builder'
 import { courseBuilderRepository } from '../services/courseBuilderRepository'
+import '../styles/course-builder.css'
 
 const contentTypes: Array<[ContentType, string]> = [
   ['video', 'Vídeo'], ['text', 'Texto'], ['pdf', 'PDF'], ['presentation', 'Apresentação'],
