@@ -101,6 +101,32 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
         WHERE tenant_id=? AND learning_cycle_id=? AND status IN ('assigned','in_progress')
       `).bind(completedAt, completedAt, input.tenantId, cycleId),
     ])
+
+    await db.prepare(`
+      UPDATE academy_company_path_assignments
+      SET status='completed', completed_at=?, updated_at=?
+      WHERE tenant_id=?
+        AND status IN ('assigned','in_progress')
+        AND id IN (
+          SELECT link.path_assignment_id
+          FROM academy_company_path_assignment_courses link
+          JOIN academy_course_assignments changed
+            ON changed.tenant_id=link.tenant_id AND changed.id=link.course_assignment_id
+          WHERE link.tenant_id=? AND changed.learning_cycle_id=?
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM academy_company_path_assignment_courses link2
+          JOIN academy_company_learning_path_courses pc
+            ON pc.tenant_id=link2.tenant_id AND pc.id=link2.path_course_id
+          JOIN academy_course_assignments ca
+            ON ca.tenant_id=link2.tenant_id AND ca.id=link2.course_assignment_id
+          WHERE link2.tenant_id=academy_company_path_assignments.tenant_id
+            AND link2.path_assignment_id=academy_company_path_assignments.id
+            AND pc.required=1
+            AND ca.status!='completed'
+        )
+    `).bind(completedAt, completedAt, input.tenantId, input.tenantId, cycleId).run()
   }
 
   const certificate = await tryIssueCertificate(db, {
