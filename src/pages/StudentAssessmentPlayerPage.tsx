@@ -1,12 +1,20 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { calculateProgress, loadStudentProgress, saveStudentProgress } from '../services/studentProgressRepository'
 import { loadQuiz } from '../services/quizRepository'
+import { loadMyEnrollments, type EnrollmentRecord } from '../services/enrollmentApi'
+import {
+  loadStudentCourse,
+  saveLessonProgress,
+  type StudentCourseDelivery,
+  type StudentDeliveredLesson,
+} from '../services/studentCourseApi'
 import type { QuizAttempt } from '../domain/assessment'
 import { QuizAttemptPanel } from './QuizAttemptPanel'
+import { ServerQuizAttemptPanel } from './ServerQuizAttemptPanel'
 import '../styles/quiz-player.css'
 import '../styles/assessment-cert.css'
 
-const lessons = [
+const demoLessons = [
   { id: 'L001', title: 'Introdução à segurança rural', duration: '08:00', type: 'video' },
   { id: 'L002', title: 'Identificação de riscos no campo', duration: '09:00', type: 'video' },
   { id: 'L003', title: 'Máquinas, equipamentos e prevenção', duration: '12:00', type: 'video' },
@@ -14,30 +22,254 @@ const lessons = [
   { id: 'L005', title: 'Avaliação final', duration: '15 min', type: 'quiz' },
 ]
 
+const assessmentLessonId = '__assessment__'
+
 export function StudentAssessmentPlayerPage() {
+  const [enrollments, setEnrollments] = useState<EnrollmentRecord[]>([])
+  const [selectedCourseId, setSelectedCourseId] = useState('')
+  const [delivery, setDelivery] = useState<StudentCourseDelivery | null>(null)
+  const [activeLessonId, setActiveLessonId] = useState('')
+  const [loadingServer, setLoadingServer] = useState(true)
+  const [serverMode, setServerMode] = useState(false)
+  const [message, setMessage] = useState('')
+
+  async function loadCourse(courseId: string) {
+    const course = await loadStudentCourse(courseId)
+    setDelivery(course)
+    const firstIncomplete = course.modules
+      .flatMap((module) => module.lessons)
+      .find((lesson) => lesson.progressPercent < 100)
+    const firstLesson = course.modules.flatMap((module) => module.lessons)[0]
+    setActiveLessonId((current) => {
+      const exists = course.modules.flatMap((module) => module.lessons).some((lesson) => lesson.id === current)
+      if (current === assessmentLessonId && course.completion.assessmentRequired) return current
+      if (exists) return current
+      return firstIncomplete?.id ?? firstLesson?.id ?? (course.completion.assessmentRequired ? assessmentLessonId : '')
+    })
+    return course
+  }
+
+  async function bootstrapServer() {
+    setLoadingServer(true)
+    try {
+      const mine = await loadMyEnrollments()
+      const available = mine.filter((item) => item.status === 'active' || item.status === 'completed')
+      setEnrollments(available)
+      if (!available.length) {
+        setServerMode(true)
+        setDelivery(null)
+        setSelectedCourseId('')
+        return
+      }
+      const courseId = selectedCourseId && available.some((item) => item.courseId === selectedCourseId)
+        ? selectedCourseId
+        : available[0].courseId
+      setSelectedCourseId(courseId)
+      await loadCourse(courseId)
+      setServerMode(true)
+      setMessage('')
+    } catch {
+      setServerMode(false)
+      setDelivery(null)
+    } finally {
+      setLoadingServer(false)
+    }
+  }
+
+  useEffect(() => {
+    void bootstrapServer()
+  }, [])
+
+  async function changeCourse(courseId: string) {
+    setSelectedCourseId(courseId)
+    setMessage('Carregando curso...')
+    try {
+      await loadCourse(courseId)
+      setMessage('')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível carregar o curso.')
+    }
+  }
+
+  async function completeServerLesson(lesson: StudentDeliveredLesson) {
+    if (!delivery) return
+    setMessage('Salvando progresso...')
+    try {
+      const result = await saveLessonProgress({
+        courseId: delivery.course.id,
+        lessonId: lesson.id,
+        progressPercent: 100,
+        lastPositionSeconds: lesson.durationMinutes * 60,
+      })
+      const refreshed = await loadCourse(delivery.course.id)
+      const allLessons = refreshed.modules.flatMap((module) => module.lessons)
+      const currentIndex = allLessons.findIndex((item) => item.id === lesson.id)
+      const nextLesson = allLessons[currentIndex + 1]
+      if (nextLesson) setActiveLessonId(nextLesson.id)
+      else if (refreshed.completion.assessmentRequired && refreshed.completion.quizId) setActiveLessonId(assessmentLessonId)
+      if (result.data.enrollmentCompletion?.completed) {
+        setMessage('Curso concluído. A certificação foi processada pelo backend.')
+      } else {
+        setMessage('Progresso salvo.')
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível salvar o progresso.')
+    }
+  }
+
+  if (loadingServer) {
+    return <section className="panel"><h2>Experiência do aluno</h2><p>Verificando matrículas e progresso...</p></section>
+  }
+
+  if (!serverMode) return <LocalDemoStudentPlayer />
+
+  if (!delivery) {
+    return (
+      <section className="panel">
+        <h2>Experiência do aluno</h2>
+        <p>Não há matrícula ativa para este usuário. Publique um curso e faça a matrícula pela aba Catálogo e matrículas.</p>
+      </section>
+    )
+  }
+
+  const lessons = delivery.modules.flatMap((module) => module.lessons)
+  const activeLesson = lessons.find((lesson) => lesson.id === activeLessonId)
+  const assessmentActive = activeLessonId === assessmentLessonId
+  const assessmentAvailable = delivery.completion.assessmentRequired && Boolean(delivery.completion.quizId)
+
+  return (
+    <div className="studentPlayerPage">
+      <div className="playerTopbar">
+        <div>
+          <small>{delivery.course.id}</small>
+          <h1>{delivery.course.title}</h1>
+          {enrollments.length > 1 && (
+            <select value={selectedCourseId} onChange={(event) => void changeCourse(event.target.value)}>
+              {enrollments.map((item) => <option key={item.courseId} value={item.courseId}>{item.courseTitle}</option>)}
+            </select>
+          )}
+        </div>
+        <div className="playerProgress">
+          <span>{delivery.completion.overallProgressPercent}% das aulas obrigatórias</span>
+          <div><i style={{ width: `${delivery.completion.overallProgressPercent}%` }} /></div>
+          <small>Matrícula: {delivery.enrollment.status}</small>
+        </div>
+      </div>
+
+      {message && <div className="reviewCard" style={{ marginBottom: 12 }}><p>{message}</p></div>}
+
+      <div className="playerLayout">
+        <main className="lessonStage">
+          <div className={`mediaStage ${assessmentActive ? 'quizStage' : ''}`}>
+            {assessmentActive && delivery.completion.quizId && (
+              <ServerQuizAttemptPanel
+                quizId={delivery.completion.quizId}
+                onFinished={async () => {
+                  const refreshed = await loadCourse(delivery.course.id)
+                  if (refreshed.enrollment.status === 'completed') {
+                    setMessage('Curso concluído. Certificação processada pelo backend.')
+                  }
+                }}
+              />
+            )}
+
+            {!assessmentActive && activeLesson?.contentType === 'video' && (
+              <div className="videoPlaceholder">
+                <strong>{activeLesson.title}</strong>
+                <span>Player preparado para receber o provedor de streaming configurado para a Academy.</span>
+              </div>
+            )}
+
+            {!assessmentActive && activeLesson && activeLesson.contentType !== 'video' && (
+              <article className="textLesson">
+                <h2>{activeLesson.title}</h2>
+                <p>Tipo de conteúdo: {activeLesson.contentType}.</p>
+                <p>O conteúdo e os materiais desta aula serão renderizados a partir do `content_json` autorizado quando o editor de conteúdo for conectado.</p>
+              </article>
+            )}
+          </div>
+
+          {!assessmentActive && activeLesson && (
+            <section className="lessonInfo">
+              <div>
+                <span className="lessonType">{activeLesson.contentType.toUpperCase()}</span>
+                <h2>{activeLesson.title}</h2>
+                <p>Duração estimada: {activeLesson.durationMinutes} min</p>
+                <p>Progresso atual: {activeLesson.progressPercent}%</p>
+              </div>
+              <button
+                className="primary"
+                disabled={activeLesson.progressPercent >= 100 || delivery.enrollment.status === 'completed'}
+                onClick={() => void completeServerLesson(activeLesson)}
+              >
+                {activeLesson.progressPercent >= 100 ? 'Aula concluída' : 'Marcar como concluída'}
+              </button>
+            </section>
+          )}
+        </main>
+
+        <aside className="lessonSidebar">
+          <div className="lessonSidebarHead">
+            <strong>Conteúdo do curso</strong>
+            <small>{lessons.length} aulas</small>
+          </div>
+          {delivery.modules.map((module) => (
+            <div key={module.id}>
+              <div style={{ padding: '10px 12px 4px' }}><small><strong>{module.title}</strong></small></div>
+              {module.lessons.map((lesson, index) => (
+                <button
+                  key={lesson.id}
+                  className={`lessonNavItem ${lesson.id === activeLessonId ? 'active' : ''}`}
+                  onClick={() => setActiveLessonId(lesson.id)}
+                >
+                  <span className={`lessonState ${lesson.progressPercent >= 100 ? 'done' : ''}`}>
+                    {lesson.progressPercent >= 100 ? 'OK' : index + 1}
+                  </span>
+                  <div>
+                    <strong>{lesson.title}</strong>
+                    <small>{lesson.durationMinutes} min · {lesson.contentType} · {lesson.progressPercent}%</small>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ))}
+
+          {assessmentAvailable && (
+            <button
+              className={`lessonNavItem ${assessmentActive ? 'active' : ''}`}
+              onClick={() => setActiveLessonId(assessmentLessonId)}
+            >
+              <span className="lessonState">AV</span>
+              <div>
+                <strong>Avaliação final</strong>
+                <small>Nota mínima {delivery.completion.minimumScore ?? 0}%</small>
+              </div>
+            </button>
+          )}
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function LocalDemoStudentPlayer() {
   const [progress, setProgress] = useState(() => loadStudentProgress())
   const [lastAttempt, setLastAttempt] = useState<QuizAttempt | null>(null)
   const quiz = useMemo(() => loadQuiz(), [])
-  const activeLesson = lessons.find((lesson) => lesson.id === progress.activeLessonId) ?? lessons[0]
+  const activeLesson = demoLessons.find((lesson) => lesson.id === progress.activeLessonId) ?? demoLessons[0]
   const courseProgress = useMemo(() => calculateProgress(progress), [progress])
 
   function persist(next: typeof progress) {
     setProgress(saveStudentProgress(next))
   }
 
-  function selectLesson(lessonId: string) {
-    persist({ ...progress, activeLessonId: lessonId })
-  }
-
   function markLessonComplete(lessonId: string, moveNext = true) {
     const nextLessons = progress.lessons.map((lesson) =>
-      lesson.lessonId === lessonId
-        ? { ...lesson, completed: true, progressPercent: 100 }
-        : lesson,
+      lesson.lessonId === lessonId ? { ...lesson, completed: true, progressPercent: 100 } : lesson,
     )
-    const currentIndex = lessons.findIndex((lesson) => lesson.id === lessonId)
+    const currentIndex = demoLessons.findIndex((lesson) => lesson.id === lessonId)
     const nextActive = moveNext
-      ? lessons[Math.min(currentIndex + 1, lessons.length - 1)].id
+      ? demoLessons[Math.min(currentIndex + 1, demoLessons.length - 1)].id
       : progress.activeLessonId
     persist({ ...progress, lessons: nextLessons, activeLessonId: nextActive })
   }
@@ -49,6 +281,10 @@ export function StudentAssessmentPlayerPage() {
 
   return (
     <div className="studentPlayerPage">
+      <div className="reviewCard" style={{ marginBottom: 12 }}>
+        <strong>Modo local de desenvolvimento</strong>
+        <p>O identity boundary/D1 não está disponível neste ambiente. O player demonstrativo permanece ativo para validação visual.</p>
+      </div>
       <div className="playerTopbar">
         <div><small>NR-31</small><h1>Segurança no Trabalho na Agricultura</h1></div>
         <div className="playerProgress"><span>{courseProgress}% concluído</span><div><i style={{ width: `${courseProgress}%` }} /></div></div>
@@ -57,44 +293,28 @@ export function StudentAssessmentPlayerPage() {
       <div className="playerLayout">
         <main className="lessonStage">
           <div className={`mediaStage ${activeLesson.type === 'quiz' ? 'quizStage' : ''}`}>
-            {activeLesson.type === 'video' && (
-              <div className="videoPlaceholder">
-                <strong>{activeLesson.title}</strong>
-                <span>Player preparado para integração com o provedor de streaming.</span>
-              </div>
-            )}
-            {activeLesson.type === 'text' && (
-              <article className="textLesson">
-                <h2>{activeLesson.title}</h2>
-                <p>Conteúdo textual com suporte futuro a anexos, links, evidências e materiais complementares.</p>
-                <p>Treinamentos regulatórios podem exigir presença, prática e validação conforme a configuração do treinamento.</p>
-              </article>
-            )}
+            {activeLesson.type === 'video' && <div className="videoPlaceholder"><strong>{activeLesson.title}</strong><span>Player preparado para streaming.</span></div>}
+            {activeLesson.type === 'text' && <article className="textLesson"><h2>{activeLesson.title}</h2><p>Conteúdo demonstrativo.</p></article>}
             {activeLesson.type === 'quiz' && <QuizAttemptPanel quiz={quiz} onFinished={onQuizFinished} />}
           </div>
-
           <section className="lessonInfo">
             <div>
               <span className="lessonType">{activeLesson.type.toUpperCase()}</span>
               <h2>{activeLesson.title}</h2>
               <p>Duração estimada: {activeLesson.duration}</p>
-              {activeLesson.type === 'quiz' && lastAttempt?.status === 'manual_review' && (
-                <p className="reviewPendingText">Avaliação enviada. A resposta aberta aguarda revisão do responsável.</p>
-              )}
+              {activeLesson.type === 'quiz' && lastAttempt?.status === 'manual_review' && <p className="reviewPendingText">Avaliação aguardando revisão.</p>}
             </div>
-            {activeLesson.type !== 'quiz' && (
-              <button className="primary" onClick={() => markLessonComplete(activeLesson.id)}>Marcar como concluída</button>
-            )}
+            {activeLesson.type !== 'quiz' && <button className="primary" onClick={() => markLessonComplete(activeLesson.id)}>Marcar como concluída</button>}
           </section>
         </main>
 
         <aside className="lessonSidebar">
           <div className="lessonSidebarHead"><strong>Conteúdo do curso</strong><small>5 aulas</small></div>
-          {lessons.map((lesson, index) => {
+          {demoLessons.map((lesson, index) => {
             const state = progress.lessons.find((item) => item.lessonId === lesson.id)
             return (
-              <button key={lesson.id} className={`lessonNavItem ${lesson.id === activeLesson.id ? 'active' : ''}`} onClick={() => selectLesson(lesson.id)}>
-                <span className={`lessonState ${state?.completed ? 'done' : ''}`}>{state?.completed ? '✓' : index + 1}</span>
+              <button key={lesson.id} className={`lessonNavItem ${lesson.id === activeLesson.id ? 'active' : ''}`} onClick={() => persist({ ...progress, activeLessonId: lesson.id })}>
+                <span className={`lessonState ${state?.completed ? 'done' : ''}`}>{state?.completed ? 'OK' : index + 1}</span>
                 <div><strong>{lesson.title}</strong><small>{lesson.duration} · {lesson.type}</small></div>
               </button>
             )
