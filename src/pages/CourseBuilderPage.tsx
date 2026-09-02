@@ -244,6 +244,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
 
               {activeLessonEditor && (
                 <LessonContentEditor
+                  courseId={state.courseId}
                   lesson={activeLessonEditor}
                   onClose={() => setActiveLessonEditorId('')}
                   onChange={(content) => updateLesson(activeLessonEditor.id, { content })}
