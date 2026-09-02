@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { QuizDefinition, QuizQuestionType } from '../domain/quiz'
-import { loadCourseBuilder } from '../services/courseBuilderApi'
+import { listCourses, loadCourseBuilder, type CourseSummary } from '../services/courseBuilderApi'
 import { loadPublishedPolicy, publishQuizPolicy, saveCompletionPolicy } from '../services/quizPolicyApi'
 import { loadQuiz, resetQuiz, saveQuiz } from '../services/quizRepository'
 import '../styles/quiz-player.css'
@@ -13,6 +13,7 @@ const labels: Record<QuizQuestionType, string> = {
 
 export function QuizBuilderPage() {
   const [quiz, setQuiz] = useState<QuizDefinition>(() => loadQuiz())
+  const [courses, setCourses] = useState<CourseSummary[]>([])
   const [serverVersion, setServerVersion] = useState<number | null>(null)
   const [serverMessage, setServerMessage] = useState('')
   const [syncMode, setSyncMode] = useState<'checking' | 'server' | 'local'>('checking')
@@ -23,6 +24,13 @@ export function QuizBuilderPage() {
 
   useEffect(() => {
     let cancelled = false
+
+    void listCourses()
+      .then((items) => {
+        if (!cancelled) setCourses(items)
+      })
+      .catch(() => undefined)
+
     void loadPublishedPolicy(quiz.id)
       .then((result) => {
         if (cancelled) return
@@ -33,6 +41,7 @@ export function QuizBuilderPage() {
       .catch(() => {
         if (!cancelled) setSyncMode('local')
       })
+
     return () => { cancelled = true }
     // A verificação inicial usa o quiz carregado no primeiro render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,6 +150,8 @@ export function QuizBuilderPage() {
       ? 'Verificando política server-side'
       : 'Modo local de desenvolvimento'
 
+  const hasCurrentCourse = courses.some((course) => course.id === quiz.courseId)
+
   return (
     <div className="quizBuilderPage">
       <div className="pageHeader">
@@ -165,7 +176,16 @@ export function QuizBuilderPage() {
       <section className="quizSettingsPanel">
         <label>
           Curso vinculado
-          <input value={quiz.courseId} onChange={(e) => persist({ ...quiz, courseId: e.target.value.trim() })} />
+          {courses.length > 0 ? (
+            <select value={quiz.courseId} onChange={(e) => persist({ ...quiz, courseId: e.target.value })}>
+              {!hasCurrentCourse && <option value={quiz.courseId}>{quiz.courseId} — vínculo local ainda não persistido</option>}
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>{course.title} · {course.id}</option>
+              ))}
+            </select>
+          ) : (
+            <input value={quiz.courseId} onChange={(e) => persist({ ...quiz, courseId: e.target.value.trim() })} />
+          )}
         </label>
         <label>
           Título
