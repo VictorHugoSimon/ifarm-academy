@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ContentType } from '../domain/academy'
 import type { BuilderLesson, CourseBuilderState } from '../domain/builder'
+import { loadCourseBuilder, saveCourseBuilder } from '../services/courseBuilderApi'
 import { courseBuilderRepository } from '../services/courseBuilderRepository'
 import '../styles/course-builder.css'
 
@@ -13,6 +14,29 @@ const contentTypes: Array<[ContentType, string]> = [
 export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
   const [state, setState] = useState<CourseBuilderState>(() => courseBuilderRepository.load())
   const [activeModuleId, setActiveModuleId] = useState(state.modules[0]?.id ?? '')
+  const [persistenceMode, setPersistenceMode] = useState<'checking' | 'server' | 'local'>('checking')
+  const [saveMessage, setSaveMessage] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    const courseId = state.courseId
+
+    void loadCourseBuilder(courseId)
+      .then((remote) => {
+        if (cancelled) return
+        setState(remote)
+        courseBuilderRepository.save(remote)
+        setActiveModuleId(remote.modules[0]?.id ?? '')
+        setPersistenceMode('server')
+      })
+      .catch(() => {
+        if (!cancelled) setPersistenceMode('local')
+      })
+
+    return () => { cancelled = true }
+    // A hidratação server-side ocorre uma vez ao abrir o builder.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const activeModule = useMemo(
     () => state.modules.find((module) => module.id === activeModuleId) ?? state.modules[0],
@@ -22,6 +46,29 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
   const persist = (next: CourseBuilderState) => {
     setState(next)
     courseBuilderRepository.save(next)
+    setSaveMessage('Alterações mantidas como rascunho local até o próximo salvamento.')
+  }
+
+  const saveChanges = async () => {
+    courseBuilderRepository.save(state)
+    setSaveMessage('Salvando...')
+    try {
+      const saved = await saveCourseBuilder(state)
+      setState(saved)
+      courseBuilderRepository.save(saved)
+      setPersistenceMode('server')
+      setSaveMessage('Alterações salvas no backend da Academy.')
+    } catch {
+      setPersistenceMode('local')
+      setSaveMessage('Backend indisponível neste ambiente. Alterações preservadas localmente.')
+    }
+  }
+
+  const restoreDemo = () => {
+    const restored = courseBuilderRepository.reset()
+    setState(restored)
+    setActiveModuleId(restored.modules[0]?.id ?? '')
+    setSaveMessage('Demo restaurada localmente. Use Salvar alterações para sincronizar quando o backend estiver disponível.')
   }
 
   const addModule = () => {
@@ -85,6 +132,12 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
   const totalMinutes = state.modules.flatMap((module) => module.lessons).reduce((sum, lesson) => sum + lesson.durationMinutes, 0)
   const totalLessons = state.modules.reduce((sum, module) => sum + module.lessons.length, 0)
 
+  const persistenceLabel = persistenceMode === 'server'
+    ? 'Persistência server-side conectada'
+    : persistenceMode === 'checking'
+      ? 'Verificando persistência server-side'
+      : 'Modo local de desenvolvimento'
+
   return (
     <>
       <div className="pageHeader">
@@ -92,10 +145,12 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
           <button className="textButton" onClick={onBack}>Voltar para cursos</button>
           <h1>Course Builder</h1>
           <p>{state.title} · estrutura, conteúdos e critérios de conclusão.</p>
+          <small>{persistenceLabel}</small>
+          {saveMessage && <small style={{ display: 'block', marginTop: 4 }}>{saveMessage}</small>}
         </div>
         <div className="headerActions">
-          <button onClick={() => setState(courseBuilderRepository.reset())}>Restaurar demo</button>
-          <button className="primary" onClick={() => courseBuilderRepository.save(state)}>Salvar alterações</button>
+          <button onClick={restoreDemo}>Restaurar demo</button>
+          <button className="primary" onClick={() => void saveChanges()}>Salvar alterações</button>
         </div>
       </div>
 
@@ -149,7 +204,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
       </div>
 
       <section className="panel quizSettings">
-        <div><h2>Avaliação final</h2><p>Critérios usados para elegibilidade de conclusão e certificado.</p></div>
+        <div><h2>Avaliação final</h2><p>Configuração estrutural do curso. A política autoritativa da avaliação é publicada separadamente pelo Quiz Builder.</p></div>
         <label><input type="checkbox" checked={state.quiz.enabled} onChange={(event) => persist({ ...state, quiz: { ...state.quiz, enabled: event.target.checked } })} /> Avaliação obrigatória</label>
         <label>Nota mínima <input type="number" min="0" max="100" value={state.quiz.minimumScore} onChange={(event) => persist({ ...state, quiz: { ...state.quiz, minimumScore: Number(event.target.value) || 0 } })} /> %</label>
         <label>Tentativas <input type="number" min="1" value={state.quiz.attemptsAllowed} onChange={(event) => persist({ ...state, quiz: { ...state.quiz, attemptsAllowed: Number(event.target.value) || 1 } })} /></label>
