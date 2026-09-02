@@ -4,6 +4,7 @@ import { QuizBuilderPage } from './QuizBuilderPage'
 import { StudentAssessmentPlayerPage } from './StudentAssessmentPlayerPage'
 import { AssessmentReviewPage } from './AssessmentReviewPage'
 import { CertificateEligibilityPage } from './CertificateEligibilityPage'
+import { CertificateValidityGovernancePage } from './CertificateValidityGovernancePage'
 import { CoursePublicationPage } from './CoursePublicationPage'
 import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import { EnterpriseTrainingPage } from './EnterpriseTrainingPage'
@@ -14,7 +15,7 @@ import { ReportsPage } from './ReportsPage'
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'instructors' | 'reports' | 'student' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'instructors' | 'reports' | 'certificate-validity' | 'student' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -26,6 +27,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['events', 'Eventos'],
   ['instructors', 'Instrutores'],
   ['reports', 'Relatórios'],
+  ['certificate-validity', 'Validade certificados'],
   ['student', 'Experiência do aluno'],
   ['review', 'Revisão manual'],
   ['certificate', 'Certificação'],
@@ -40,7 +42,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>iFarm Academy · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos Smart Farm, instrutores, responsabilidade técnica, relatórios, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos Smart Farm, instrutores, governança de certificados, relatórios, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -59,6 +61,7 @@ export function AcademyWorkspacePage() {
       {view === 'events' && <EventOperationsPage />}
       {view === 'instructors' && <InstructorGovernancePage />}
       {view === 'reports' && <ReportsPage />}
+      {view === 'certificate-validity' && <CertificateValidityGovernancePage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
       {view === 'review' && <AssessmentReviewPage />}
       {view === 'certificate' && <CertificateEligibilityPage />}
