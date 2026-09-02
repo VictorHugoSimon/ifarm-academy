@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { evaluateCertificateEligibility } from '../application/assessmentService'
-import { certificateValidationUrl, formatWorkload, loadMyCertificates, type CertificateRecord } from '../services/certificateApi'
+import {
+  certificateStatusLabel,
+  certificateValidationUrl,
+  certificateValidityLabel,
+  formatWorkload,
+  loadMyCertificates,
+  type CertificateRecord,
+} from '../services/certificateApi'
 import { loadQuiz } from '../services/quizRepository'
 import { calculateProgress, loadStudentProgress } from '../services/studentProgressRepository'
 import { issueCertificate, loadAttempts, loadCertificates } from '../services/quizAttemptRepository'
@@ -38,7 +45,7 @@ export function CertificateEligibilityPage() {
         <div className="pageHeader">
           <div>
             <h1>Certificação</h1>
-            <p>Certificados emitidos automaticamente após o atendimento dos requisitos acadêmicos.</p>
+            <p>Certificados emitidos automaticamente após o atendimento dos requisitos acadêmicos, com situação pública e política de validade preservadas no snapshot.</p>
           </div>
         </div>
 
@@ -59,23 +66,27 @@ export function CertificateEligibilityPage() {
           )}
 
           <div className="certificateServerList">
-            {serverCertificates.map((certificate) => (
-              <article className="certificateServerItem" key={certificate.publicCode}>
-                <div>
-                  <small>{certificate.status === 'valid' ? 'Válido' : 'Revogado'}</small>
-                  <h3>{certificate.courseTitle}</h3>
-                  <p>{formatWorkload(certificate.workloadMinutes)} · concluído em {new Date(certificate.completionDate).toLocaleDateString('pt-BR')}</p>
-                  <strong>{certificate.publicCode}</strong>
-                </div>
-                <div className="certificateServerActions">
-                  <a href={certificateValidationUrl(certificate.publicCode)} target="_blank" rel="noopener noreferrer">Validar certificado</a>
-                  <button onClick={() => {
-                    void navigator.clipboard?.writeText(certificate.publicCode)
-                    setServerMessage(`Código ${certificate.publicCode} copiado.`)
-                  }}>Copiar código</button>
-                </div>
-              </article>
-            ))}
+            {serverCertificates.map((certificate) => {
+              const effectiveStatus = certificate.effectiveStatus ?? (certificate.status === 'revoked' ? 'revoked' : 'valid')
+              return (
+                <article className={`certificateServerItem ${effectiveStatus}`} key={certificate.publicCode}>
+                  <div>
+                    <small>{certificateStatusLabel(effectiveStatus)}</small>
+                    <h3>{certificate.courseTitle}</h3>
+                    <p>{formatWorkload(certificate.workloadMinutes)} · concluído em {new Date(certificate.completionDate).toLocaleDateString('pt-BR')}</p>
+                    <p>{certificateValidityLabel(certificate)}</p>
+                    <strong>{certificate.publicCode}</strong>
+                  </div>
+                  <div className="certificateServerActions">
+                    <a href={certificateValidationUrl(certificate.publicCode)} target="_blank" rel="noopener noreferrer">Validar certificado</a>
+                    <button onClick={() => {
+                      void navigator.clipboard?.writeText(certificate.publicCode)
+                      setServerMessage(`Código ${certificate.publicCode} copiado.`)
+                    }}>Copiar código</button>
+                  </div>
+                </article>
+              )
+            })}
           </div>
         </section>
       </div>
