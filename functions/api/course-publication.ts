@@ -1,10 +1,16 @@
 import { auditStatement } from './_audit'
 import { requireAdminContext } from './_auth'
-import { evaluateCourseReadiness } from './_coursePublication'
+import {
+  evaluateCourseReadiness,
+  resolveCourseTransition,
+  type CoursePublicationAction,
+  type CourseStatus,
+} from './_coursePublication'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 const editorRoles = ['academy_admin', 'academy_instructor', 'instructor', 'ifarm_admin']
 const publisherRoles = new Set(['academy_admin', 'ifarm_admin'])
+const publicationActions = new Set<CoursePublicationAction>(['submit_review', 'publish', 'return_draft', 'archive'])
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const auth = requireAdminContext(env, request, editorRoles)
@@ -36,35 +42,29 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
 
   let body: Record<string, unknown>
   try { body = await bodyJson(request) } catch { return json({ error: 'JSON inválido' }, 400) }
+
   const courseId = String(body.courseId ?? '').trim()
-  const action = String(body.action ?? '').trim()
-  if (!courseId || !action) return json({ error: 'courseId e action são obrigatórios' }, 400)
+  const rawAction = String(body.action ?? '').trim()
+  if (!courseId || !rawAction) return json({ error: 'courseId e action são obrigatórios' }, 400)
+  if (!publicationActions.has(rawAction as CoursePublicationAction)) return json({ error: 'Ação de publicação inválida' }, 400)
+  const action = rawAction as CoursePublicationAction
 
   const readiness = await evaluateCourseReadiness(db, auth.tenantId, courseId)
   if (!readiness.exists || !readiness.course) return json({ error: 'Curso não encontrado neste tenant' }, 404)
-  const currentStatus = String(readiness.course.status ?? 'draft')
+  const currentStatus = String(readiness.course.status ?? 'draft') as CourseStatus
 
-  let nextStatus: string
-  if (action === 'submit_review') {
-    if (!['draft'].includes(currentStatus)) return json({ error: 'Somente curso em draft pode ser enviado para revisão' }, 409)
-    nextStatus = 'review'
-  } else if (action === 'publish') {
-    if (!auth.roles.some((role) => publisherRoles.has(role))) return json({ error: 'Somente administrador pode publicar curso' }, 403)
-    if (currentStatus !== 'review') return json({ error: 'Curso precisa estar em revisão antes de publicar' }, 409)
-    if (!readiness.ready) return json({ error: 'Curso ainda não está pronto para publicação', issues: readiness.issues }, 409)
-    nextStatus = 'published'
-  } else if (action === 'return_draft') {
-    if (!auth.roles.some((role) => publisherRoles.has(role))) return json({ error: 'Somente administrador pode devolver curso para rascunho' }, 403)
-    if (currentStatus !== 'review') return json({ error: 'Somente curso em revisão pode voltar para draft' }, 409)
-    nextStatus = 'draft'
-  } else if (action === 'archive') {
-    if (!auth.roles.some((role) => publisherRoles.has(role))) return json({ error: 'Somente administrador pode arquivar curso' }, 403)
-    if (currentStatus !== 'published') return json({ error: 'Somente curso publicado pode ser arquivado' }, 409)
-    nextStatus = 'archived'
-  } else {
-    return json({ error: 'Ação de publicação inválida' }, 400)
+  const transition = resolveCourseTransition(currentStatus, action)
+  if (!transition.ok || !transition.nextStatus) return json({ error: transition.error ?? 'Transição inválida' }, 409)
+
+  if (transition.publisherRequired && !auth.roles.some((role) => publisherRoles.has(role))) {
+    return json({ error: 'Somente administrador pode executar esta transição' }, 403)
   }
 
+  if (transition.readinessRequired && !readiness.ready) {
+    return json({ error: 'Curso ainda não está pronto para publicação', issues: readiness.issues }, 409)
+  }
+
+  const nextStatus = transition.nextStatus
   const now = new Date().toISOString()
   const statements: any[] = [
     db.prepare(`
