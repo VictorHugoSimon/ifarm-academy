@@ -1,15 +1,15 @@
 import { auditStatement } from '../../_audit'
-import { requireAdminContext } from '../../_auth'
+import { requireCompanyScope, requireEnterpriseContext } from '../../_enterpriseAuth'
 import { bodyJson, dbOr503, json, type Env } from '../../_shared'
 
-const enterpriseRoles = ['academy_admin', 'ifarm_admin', 'company_admin', 'academy_company_admin']
-
 export const onRequestGet = async ({ env, request, params }: { env: Env; request: Request; params: Record<string, string> }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
   const companyId = String(params.id ?? '').trim()
   if (!companyId) return json({ error: 'companyId é obrigatório' }, 400)
+  const scopeDenied = requireCompanyScope(auth, companyId)
+  if (scopeDenied) return scopeDenied
 
   const company = await db.prepare('SELECT id FROM academy_companies WHERE tenant_id=? AND id=? LIMIT 1')
     .bind(auth.tenantId, companyId).first()
@@ -43,11 +43,13 @@ export const onRequestGet = async ({ env, request, params }: { env: Env; request
 }
 
 export const onRequestPost = async ({ env, request, params }: { env: Env; request: Request; params: Record<string, string> }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
   const companyId = String(params.id ?? '').trim()
   if (!companyId) return json({ error: 'companyId é obrigatório' }, 400)
+  const scopeDenied = requireCompanyScope(auth, companyId)
+  if (scopeDenied) return scopeDenied
 
   let body: Record<string, unknown>
   try { body = await bodyJson(request) } catch { return json({ error: 'JSON inválido' }, 400) }
