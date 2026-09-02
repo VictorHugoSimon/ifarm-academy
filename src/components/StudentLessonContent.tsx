@@ -1,5 +1,6 @@
-import type { StudentDeliveredLesson } from '../services/studentCourseApi'
 import { ServerQuizAttemptPanel } from '../pages/ServerQuizAttemptPanel'
+import type { ServerAttemptSubmission } from '../services/studentAssessmentApi'
+import type { StudentDeliveredLesson } from '../services/studentCourseApi'
 
 function ExternalResource({ url, label }: { url?: string; label: string }) {
   if (!url) return null
@@ -15,7 +16,7 @@ export function StudentLessonContent({
   onAssessmentFinished,
 }: {
   lesson: StudentDeliveredLesson
-  onAssessmentFinished?: () => void | Promise<void>
+  onAssessmentFinished?: (result: ServerAttemptSubmission) => void | Promise<void>
 }) {
   const content = lesson.content ?? {}
 
