@@ -1,5 +1,16 @@
 import type { ContentType } from './academy'
 
+export interface LessonContentDraft {
+  body?: string
+  instructions?: string
+  externalUrl?: string
+  label?: string
+  fileName?: string
+  provider?: string
+  providerRef?: string
+  linkedQuizId?: string
+}
+
 export interface BuilderLesson {
   id: string
   title: string
@@ -7,6 +18,7 @@ export interface BuilderLesson {
   durationMinutes: number
   required: boolean
   position: number
+  content: LessonContentDraft
 }
 
 export interface BuilderModule {
