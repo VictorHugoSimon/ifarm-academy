@@ -1,8 +1,15 @@
+export interface PolicyQuestionOption {
+  id: string
+  label: string
+}
+
 export interface PolicyQuestion {
   id: string
   type: 'multiple_choice' | 'true_false' | 'open_answer'
+  prompt?: string
   points: number
   correctOptionIds?: string[]
+  options?: PolicyQuestionOption[]
   manualReview?: boolean
 }
 
