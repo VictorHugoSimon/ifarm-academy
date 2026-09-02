@@ -1,6 +1,10 @@
+import { requireAdminContext } from './_auth'
 import { dbOr503, json, safeJson, type Env } from './_shared'
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
+  const auth = requireAdminContext(env, request, ['academy_admin', 'academy_reviewer', 'ifarm_admin'])
+  if (auth instanceof Response) return auth
+
   const db = dbOr503(env); if (db instanceof Response) return db
   const url = new URL(request.url)
   const quizId = url.searchParams.get('quizId')
@@ -41,5 +45,6 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       submittedAt: row.submitted_at,
       startedAt: row.started_at,
     })),
+    actor: { userId: auth.userId, tenantId: auth.tenantId, roles: auth.roles },
   })
 }
