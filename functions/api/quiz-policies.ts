@@ -1,3 +1,4 @@
+import { requireAdminContext } from './_auth'
 import { bodyJson, dbOr503, json, safeJson, type Env } from './_shared'
 import type { PolicyQuestion } from './_assessment'
 
@@ -17,6 +18,9 @@ function validateQuestions(value: unknown): PolicyQuestion[] | null {
 }
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
+  const auth = requireAdminContext(env, request, ['academy_admin', 'ifarm_admin'])
+  if (auth instanceof Response) return auth
+
   const db = dbOr503(env); if (db instanceof Response) return db
   const quizId = new URL(request.url).searchParams.get('quizId')
   if (!quizId) return json({ error: 'quizId é obrigatório' }, 400)
@@ -29,16 +33,20 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       current: current ? { ...current, questions: safeJson(current.questions_json, []), questions_json: undefined } : null,
       history: history.results.map((row: any) => ({ ...row, questions: safeJson(row.questions_json, []), questions_json: undefined })),
     },
+    actor: { userId: auth.userId, tenantId: auth.tenantId, roles: auth.roles },
   })
 }
 
 export const onRequestPost = async ({ env, request }: { env: Env; request: Request }) => {
+  const auth = requireAdminContext(env, request, ['academy_admin', 'ifarm_admin'])
+  if (auth instanceof Response) return auth
+
   const db = dbOr503(env); if (db instanceof Response) return db
   let body: Record<string, unknown>
   try { body = await bodyJson(request) } catch { return json({ error: 'JSON inválido' }, 400) }
 
   const quizId = String(body.quizId ?? '').trim()
-  const actorId = String(body.actorId ?? '').trim()
+  const actorId = auth.userId
   const courseId = body.courseId == null ? null : String(body.courseId)
   const minimumScore = Number(body.minimumScore ?? 0)
   const attemptsAllowed = body.attemptsAllowed == null ? null : Number(body.attemptsAllowed)
@@ -46,7 +54,6 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   const questions = validateQuestions(body.questions)
 
   if (!quizId) return json({ error: 'quizId é obrigatório' }, 400)
-  if (!actorId) return json({ error: 'actorId é obrigatório para auditoria' }, 400)
   if (!Number.isFinite(minimumScore) || minimumScore < 0 || minimumScore > 100) return json({ error: 'minimumScore deve estar entre 0 e 100' }, 400)
   if (attemptsAllowed != null && (!Number.isInteger(attemptsAllowed) || attemptsAllowed <= 0)) return json({ error: 'attemptsAllowed deve ser inteiro positivo ou null' }, 400)
   if (!questions) return json({ error: 'questions deve conter questões válidas e IDs únicos' }, 400)
