@@ -21,6 +21,8 @@ export interface StudentAssessmentDefinition {
 
 export interface ServerAttempt {
   id: string
+  cycleId?: string | null
+  cycleNumber?: number | null
   quizId: string
   attemptNumber: number
   status: 'in_progress' | 'submitted' | 'manual_review' | 'approved' | 'failed'
@@ -33,6 +35,8 @@ export interface ServerAttempt {
 
 export interface ServerAttemptSubmission {
   id: string
+  cycleId?: string | null
+  cycleNumber?: number | null
   status: ServerAttempt['status']
   finalPercentage?: number | null
   minimumScore: number
@@ -60,6 +64,8 @@ export async function loadStudentAssessment(quizId: string): Promise<StudentAsse
 function normalizeAttempt(row: Record<string, any>): ServerAttempt {
   return {
     id: String(row.id),
+    cycleId: row.cycleId ?? row.cycle_id ?? null,
+    cycleNumber: row.cycleNumber == null ? null : Number(row.cycleNumber),
     quizId: String(row.quizId ?? row.quiz_id),
     attemptNumber: Number(row.attemptNumber ?? row.attempt_number ?? 1),
     status: String(row.status) as ServerAttempt['status'],
