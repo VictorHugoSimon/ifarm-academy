@@ -38,7 +38,9 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
     WHERE l.tenant_id=? AND l.course_id=? AND l.required=1
   `).bind(input.studentId, input.tenantId, input.courseId).first()
 
-  const requiredLessons = Number(progress?.required ?? 0)
+  const requiredByStructure = Number(progress?.required ?? 0)
+  const requiredByPolicy = Number(policy.required_lessons_count ?? 0)
+  const requiredLessons = Math.max(requiredByStructure, requiredByPolicy)
   const completedLessons = Number(progress?.completed ?? 0)
   if (requiredLessons < 1 || completedLessons < requiredLessons) {
     return {
