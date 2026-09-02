@@ -1,8 +1,6 @@
 import { auditStatement } from './_audit'
-import { requireAdminContext } from './_auth'
+import { requireCompanyScope, requireEnterpriseContext } from './_enterpriseAuth'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
-
-const enterpriseRoles = ['academy_admin', 'ifarm_admin', 'company_admin', 'academy_company_admin']
 
 function normalizeDueAt(value: unknown): string | null | undefined {
   if (value == null || value === '') return null
@@ -13,13 +11,15 @@ function normalizeDueAt(value: unknown): string | null | undefined {
 }
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
 
   const url = new URL(request.url)
   const companyId = url.searchParams.get('companyId')?.trim() ?? ''
   if (!companyId) return json({ error: 'companyId é obrigatório' }, 400)
+  const scopeDenied = requireCompanyScope(auth, companyId)
+  if (scopeDenied) return scopeDenied
 
   const company = await db.prepare('SELECT id FROM academy_companies WHERE tenant_id=? AND id=? LIMIT 1')
     .bind(auth.tenantId, companyId).first()
@@ -36,7 +36,15 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       e.status AS enrollment_status,
       e.completed_at AS enrollment_completed_at,
       cert.public_code AS certificate_code,
-      cert.status AS certificate_status
+      cert.status AS certificate_status,
+      COALESCE((
+        SELECT ROUND(AVG(COALESCE(p.progress_percent, 0)))
+        FROM academy_course_lessons l
+        LEFT JOIN academy_progress p
+          ON p.tenant_id=l.tenant_id AND p.course_id=l.course_id
+          AND p.lesson_id=l.id AND p.student_id=m.user_id
+        WHERE l.tenant_id=a.tenant_id AND l.course_id=a.course_id AND l.required=1
+      ), 0) AS progress_percent
     FROM academy_course_assignments a
     JOIN academy_company_members m
       ON m.tenant_id=a.tenant_id AND m.company_id=a.company_id AND m.id=a.member_id
@@ -53,9 +61,10 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   const now = Date.now()
   return json({ data: (result.results as any[]).map((row) => {
+    const progressPercent = Math.max(0, Math.min(100, Number(row.progress_percent ?? 0)))
     const completed = String(row.enrollment_status ?? '') === 'completed'
     const cancelled = String(row.status) === 'cancelled'
-    const started = !completed && String(row.enrollment_status ?? '') === 'active'
+    const started = !completed && progressPercent > 0
     const dueMs = row.due_at ? new Date(String(row.due_at)).getTime() : Number.NaN
     const overdue = !cancelled && !completed && Number.isFinite(dueMs) && dueMs < now
     return {
@@ -72,6 +81,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       dueAt: row.due_at ?? null,
       status: row.status,
       effectiveStatus: cancelled ? 'cancelled' : completed ? 'completed' : started ? 'in_progress' : 'assigned',
+      progressPercent,
       overdue,
       certificateCode: row.certificate_code ?? null,
       certificateStatus: row.certificate_status ?? null,
@@ -83,7 +93,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 }
 
 export const onRequestPost = async ({ env, request }: { env: Env; request: Request }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
 
@@ -96,6 +106,8 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   const dueAt = normalizeDueAt(body.dueAt)
   if (!companyId || !memberId || !courseId) return json({ error: 'companyId, memberId e courseId são obrigatórios' }, 400)
   if (dueAt === undefined) return json({ error: 'dueAt inválido' }, 400)
+  const scopeDenied = requireCompanyScope(auth, companyId)
+  if (scopeDenied) return scopeDenied
 
   const company = await db.prepare(`SELECT id, status FROM academy_companies WHERE tenant_id=? AND id=? LIMIT 1`)
     .bind(auth.tenantId, companyId).first()
@@ -196,7 +208,8 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     required,
     dueAt,
     status: alreadyCompleted ? 'completed' : 'assigned',
-    effectiveStatus: alreadyCompleted ? 'completed' : 'in_progress',
+    effectiveStatus: alreadyCompleted ? 'completed' : 'assigned',
+    progressPercent: alreadyCompleted ? 100 : 0,
     overdue: false,
     assignedAt: now,
     completedAt: alreadyCompleted ? enrollment.completed_at ?? now : null,
@@ -205,7 +218,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
 }
 
 export const onRequestDelete = async ({ env, request }: { env: Env; request: Request }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
   const assignmentId = new URL(request.url).searchParams.get('assignmentId')?.trim() ?? ''
@@ -216,6 +229,8 @@ export const onRequestDelete = async ({ env, request }: { env: Env; request: Req
     WHERE tenant_id=? AND id=? LIMIT 1
   `).bind(auth.tenantId, assignmentId).first()
   if (!assignment) return json({ error: 'Atribuição não encontrada neste tenant' }, 404)
+  const scopeDenied = requireCompanyScope(auth, String(assignment.company_id))
+  if (scopeDenied) return scopeDenied
   if (String(assignment.status) === 'cancelled') return json({ data: { id: assignmentId, status: 'cancelled' }, idempotent: true })
 
   const now = new Date().toISOString()
