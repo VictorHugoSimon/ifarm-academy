@@ -59,6 +59,14 @@ export async function ensureEnterpriseCourseAssignment(db: any, input: EnsureAss
           WHERE tenant_id=? AND id=?
         `).bind(stricterDueAt, nextRequired, nextRenewal, input.now, input.tenantId, existing.id))
       }
+    } else if (String(existing.status) === 'completed' && existing.renewal_months == null && input.renewalMonths) {
+      // A nova política empresarial pode começar a monitorar uma conclusão histórica,
+      // sem reabrir matrícula, progresso, avaliação ou certificado já concluídos.
+      statements.push(db.prepare(`
+        UPDATE academy_course_assignments
+        SET renewal_months=?, updated_at=?
+        WHERE tenant_id=? AND id=? AND status='completed'
+      `).bind(input.renewalMonths, input.now, input.tenantId, existing.id))
     }
     return { id: String(existing.id), completed, existing: true, statements }
   }
