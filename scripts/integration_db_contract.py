@@ -29,6 +29,7 @@ def main() -> None:
     tenant = 'TENANT-A'
     other_tenant = 'TENANT-B'
     now = '2026-09-02T12:00:00.000Z'
+    cycle_id = 'CYCLE-A-1'
 
     db.execute(
         '''INSERT INTO academy_courses (
@@ -61,33 +62,42 @@ def main() -> None:
     db.execute(
         '''INSERT INTO academy_enrollments (
           id, tenant_id, course_id, student_id, student_name_snapshot,
-          source, status, enrolled_at, completed_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'academy', 'completed', ?, ?, ?)''',
+          source, status, enrolled_at, completed_at, updated_at, active_cycle_id
+        ) VALUES (?, ?, ?, ?, ?, 'academy', 'completed', ?, ?, ?, NULL)''',
         ('ENROLL-A', tenant, 'COURSE-A', 'STUDENT-A', 'Aluno Teste', now, now, now),
     )
     db.execute(
+        '''INSERT INTO academy_learning_cycles (
+          id, tenant_id, enrollment_id, student_id, course_id, cycle_number,
+          status, source, started_at, completed_at, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 1, 'completed', 'academy', ?, ?, ?, ?)''',
+        (cycle_id, tenant, 'ENROLL-A', 'STUDENT-A', 'COURSE-A', now, now, now, now),
+    )
+    db.execute('UPDATE academy_enrollments SET active_cycle_id=? WHERE id=?', (cycle_id, 'ENROLL-A'))
+    db.execute(
         '''INSERT INTO academy_progress (
-          student_id, course_id, lesson_id, progress_percent, completed_at,
+          cycle_id, student_id, course_id, lesson_id, progress_percent, completed_at,
           updated_at, tenant_id, last_position_seconds
-        ) VALUES (?, ?, ?, 100, ?, ?, ?, 3600)''',
-        ('STUDENT-A', 'COURSE-A', 'LESSON-A', now, now, tenant),
+        ) VALUES (?, ?, ?, ?, 100, ?, ?, ?, 3600)''',
+        (cycle_id, 'STUDENT-A', 'COURSE-A', 'LESSON-A', now, now, tenant),
     )
     db.execute(
         '''INSERT INTO academy_certificates (
-          id, public_code, student_id, student_name, course_id, course_title,
+          id, cycle_id, public_code, student_id, student_name, course_id, course_title,
           final_score, issued_at, status, tenant_id, workload_minutes,
           instructor_label, certificate_type, completion_date, metadata_version
-        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, 'valid', ?, 60, ?, 'free_course', ?, 1)''',
-        ('CERT-A', 'IFA-2026-INTEGRATION', 'STUDENT-A', 'Aluno Teste', 'COURSE-A', 'Agricultura Digital', now, tenant, 'Equipe Técnica iFarm', now),
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 'valid', ?, 60, ?, 'free_course', ?, 1)''',
+        ('CERT-A', cycle_id, 'IFA-2026-INTEGRATION', 'STUDENT-A', 'Aluno Teste', 'COURSE-A', 'Agricultura Digital', now, tenant, 'Equipe Técnica iFarm', now),
     )
 
     certificate = db.execute(
-        '''SELECT public_code, student_name, course_title, workload_minutes,
+        '''SELECT public_code, cycle_id, student_name, course_title, workload_minutes,
                   instructor_label, certificate_type, status
            FROM academy_certificates WHERE public_code=?''',
         ('IFA-2026-INTEGRATION',),
     ).fetchone()
     assert certificate is not None
+    assert certificate['cycle_id'] == cycle_id
     assert certificate['status'] == 'valid'
     assert certificate['student_name'] == 'Aluno Teste'
     assert certificate['course_title'] == 'Agricultura Digital'
@@ -108,27 +118,27 @@ def main() -> None:
     expect_integrity_error(
         db,
         '''INSERT INTO academy_progress (
-          student_id, course_id, lesson_id, progress_percent,
+          cycle_id, student_id, course_id, lesson_id, progress_percent,
           updated_at, tenant_id, last_position_seconds
-        ) VALUES (?, ?, ?, 10, ?, ?, 10)''',
-        ('STUDENT-X', 'COURSE-A', 'LESSON-A', now, other_tenant),
-        'academy_progress tenant/course/lesson mismatch',
+        ) VALUES (?, ?, ?, ?, 10, ?, ?, 10)''',
+        ('CYCLE-CROSS', 'STUDENT-X', 'COURSE-A', 'LESSON-A', now, other_tenant),
+        'academy_progress cycle mismatch',
     )
 
     expect_integrity_error(
         db,
         '''INSERT INTO academy_certificates (
-          id, public_code, student_id, student_name, course_id, course_title,
+          id, cycle_id, public_code, student_id, student_name, course_id, course_title,
           issued_at, status, tenant_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'valid', ?)''',
-        ('CERT-CROSS', 'IFA-2026-CROSS', 'STUDENT-X', 'Cross Tenant', 'COURSE-A', 'Agricultura Digital', now, other_tenant),
-        'academy_certificates tenant/course mismatch',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?)''',
+        ('CERT-CROSS', 'CYCLE-CROSS', 'IFA-2026-CROSS', 'STUDENT-X', 'Cross Tenant', 'COURSE-A', 'Agricultura Digital', now, other_tenant),
+        'academy_certificates cycle mismatch',
     )
 
     violations = db.execute('PRAGMA foreign_key_check').fetchall()
     assert not violations, violations
 
-    print('PASS integration_db_contract: fixtures, certificate snapshot and tenant isolation')
+    print('PASS integration_db_contract: cycle-aware fixtures, certificate snapshot and tenant isolation')
     db.close()
 
 
