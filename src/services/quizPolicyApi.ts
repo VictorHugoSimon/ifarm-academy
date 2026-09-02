@@ -31,7 +31,9 @@ export async function publishQuizPolicy(quiz: QuizDefinition): Promise<Published
   const questions = quiz.questions.map((question) => ({
     id: question.id,
     type: question.type,
+    prompt: question.prompt,
     points: question.points,
+    options: question.options.map((option) => ({ id: option.id, label: option.label })),
     correctOptionIds: question.type === 'open_answer'
       ? undefined
       : question.options.filter((option) => option.isCorrect).map((option) => option.id),
