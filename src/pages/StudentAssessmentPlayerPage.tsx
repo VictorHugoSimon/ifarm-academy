@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { calculateProgress, loadStudentProgress, saveStudentProgress } from '../services/studentProgressRepository'
-import { loadQuiz } from '../services/quizRepository'
+import { StudentLessonContent } from '../components/StudentLessonContent'
+import type { QuizAttempt } from '../domain/assessment'
 import { loadMyEnrollments, type EnrollmentRecord } from '../services/enrollmentApi'
+import { loadQuiz } from '../services/quizRepository'
 import {
   loadStudentCourse,
   saveLessonProgress,
   type StudentCourseDelivery,
   type StudentDeliveredLesson,
 } from '../services/studentCourseApi'
-import type { QuizAttempt } from '../domain/assessment'
+import { calculateProgress, loadStudentProgress, saveStudentProgress } from '../services/studentProgressRepository'
 import { QuizAttemptPanel } from './QuizAttemptPanel'
 import { ServerQuizAttemptPanel } from './ServerQuizAttemptPanel'
 import '../styles/quiz-player.css'
@@ -36,12 +37,11 @@ export function StudentAssessmentPlayerPage() {
   async function loadCourse(courseId: string) {
     const course = await loadStudentCourse(courseId)
     setDelivery(course)
-    const firstIncomplete = course.modules
-      .flatMap((module) => module.lessons)
-      .find((lesson) => lesson.progressPercent < 100)
-    const firstLesson = course.modules.flatMap((module) => module.lessons)[0]
+    const allLessons = course.modules.flatMap((module) => module.lessons)
+    const firstIncomplete = allLessons.find((lesson) => lesson.progressPercent < 100)
+    const firstLesson = allLessons[0]
     setActiveLessonId((current) => {
-      const exists = course.modules.flatMap((module) => module.lessons).some((lesson) => lesson.id === current)
+      const exists = allLessons.some((lesson) => lesson.id === current)
       if (current === assessmentLessonId && course.completion.assessmentRequired) return current
       if (exists) return current
       return firstIncomplete?.id ?? firstLesson?.id ?? (course.completion.assessmentRequired ? assessmentLessonId : '')
@@ -136,6 +136,9 @@ export function StudentAssessmentPlayerPage() {
   const activeLesson = lessons.find((lesson) => lesson.id === activeLessonId)
   const assessmentActive = activeLessonId === assessmentLessonId
   const assessmentAvailable = delivery.completion.assessmentRequired && Boolean(delivery.completion.quizId)
+  const activeLessonIsAssessment = activeLesson
+    ? activeLesson.contentType === 'quiz' || activeLesson.contentType === 'exam'
+    : false
 
   return (
     <div className="studentPlayerPage">
@@ -160,7 +163,7 @@ export function StudentAssessmentPlayerPage() {
 
       <div className="playerLayout">
         <main className="lessonStage">
-          <div className={`mediaStage ${assessmentActive ? 'quizStage' : ''}`}>
+          <div className={`mediaStage ${assessmentActive || activeLessonIsAssessment ? 'quizStage' : ''}`}>
             {assessmentActive && delivery.completion.quizId && (
               <ServerQuizAttemptPanel
                 quizId={delivery.completion.quizId}
@@ -173,19 +176,17 @@ export function StudentAssessmentPlayerPage() {
               />
             )}
 
-            {!assessmentActive && activeLesson?.contentType === 'video' && (
-              <div className="videoPlaceholder">
-                <strong>{activeLesson.title}</strong>
-                <span>Player preparado para receber o provedor de streaming configurado para a Academy.</span>
-              </div>
-            )}
-
-            {!assessmentActive && activeLesson && activeLesson.contentType !== 'video' && (
-              <article className="textLesson">
-                <h2>{activeLesson.title}</h2>
-                <p>Tipo de conteúdo: {activeLesson.contentType}.</p>
-                <p>O conteúdo e os materiais desta aula serão renderizados a partir do `content_json` autorizado quando o editor de conteúdo for conectado.</p>
-              </article>
+            {!assessmentActive && activeLesson && (
+              <StudentLessonContent
+                lesson={activeLesson}
+                onAssessmentFinished={async (result) => {
+                  if (result.status === 'approved') {
+                    await completeServerLesson(activeLesson)
+                  } else if (result.status === 'manual_review') {
+                    setMessage('Avaliação enviada. Esta aula será concluída após a revisão manual e aprovação.')
+                  }
+                }}
+              />
             )}
           </div>
 
@@ -196,14 +197,19 @@ export function StudentAssessmentPlayerPage() {
                 <h2>{activeLesson.title}</h2>
                 <p>Duração estimada: {activeLesson.durationMinutes} min</p>
                 <p>Progresso atual: {activeLesson.progressPercent}%</p>
+                {activeLesson.lastPositionSeconds > 0 && activeLesson.progressPercent < 100 && (
+                  <p>Retomada registrada em {Math.floor(activeLesson.lastPositionSeconds / 60)} min {activeLesson.lastPositionSeconds % 60}s.</p>
+                )}
               </div>
-              <button
-                className="primary"
-                disabled={activeLesson.progressPercent >= 100 || delivery.enrollment.status === 'completed'}
-                onClick={() => void completeServerLesson(activeLesson)}
-              >
-                {activeLesson.progressPercent >= 100 ? 'Aula concluída' : 'Marcar como concluída'}
-              </button>
+              {!activeLessonIsAssessment && (
+                <button
+                  className="primary"
+                  disabled={activeLesson.progressPercent >= 100 || delivery.enrollment.status === 'completed'}
+                  onClick={() => void completeServerLesson(activeLesson)}
+                >
+                  {activeLesson.progressPercent >= 100 ? 'Aula concluída' : 'Marcar como concluída'}
+                </button>
+              )}
             </section>
           )}
         </main>
