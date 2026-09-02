@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { LessonContentEditor } from '../components/LessonContentEditor'
 import type { ContentType } from '../domain/academy'
 import type { BuilderLesson, CourseBuilderState } from '../domain/builder'
 import { loadCourseBuilder, saveCourseBuilder } from '../services/courseBuilderApi'
@@ -11,9 +12,24 @@ const contentTypes: Array<[ContentType, string]> = [
   ['practical_activity', 'Atividade prática'], ['simulation', 'Simulação'], ['quiz', 'Quiz'], ['exam', 'Prova'],
 ]
 
+function isContentConfigured(lesson: BuilderLesson): boolean {
+  const content = lesson.content ?? {}
+  if (lesson.contentType === 'text') return Boolean(content.body?.trim())
+  if (lesson.contentType === 'link') return Boolean(content.externalUrl?.trim())
+  if (['video', 'audio', 'pdf', 'presentation', 'file'].includes(lesson.contentType)) {
+    return Boolean(content.providerRef?.trim() || content.externalUrl?.trim())
+  }
+  if (['exercise', 'practical_activity', 'case_study', 'simulation'].includes(lesson.contentType)) {
+    return Boolean(content.instructions?.trim() || content.body?.trim())
+  }
+  if (lesson.contentType === 'quiz' || lesson.contentType === 'exam') return Boolean(content.linkedQuizId?.trim())
+  return true
+}
+
 export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
   const [state, setState] = useState<CourseBuilderState>(() => courseBuilderRepository.load())
   const [activeModuleId, setActiveModuleId] = useState(state.modules[0]?.id ?? '')
+  const [activeLessonEditorId, setActiveLessonEditorId] = useState('')
   const [persistenceMode, setPersistenceMode] = useState<'checking' | 'server' | 'local'>('checking')
   const [saveMessage, setSaveMessage] = useState('')
 
@@ -27,6 +43,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
         setState(remote)
         courseBuilderRepository.save(remote)
         setActiveModuleId(remote.modules[0]?.id ?? '')
+        setActiveLessonEditorId('')
         setPersistenceMode('server')
       })
       .catch(() => {
@@ -41,6 +58,11 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
   const activeModule = useMemo(
     () => state.modules.find((module) => module.id === activeModuleId) ?? state.modules[0],
     [state.modules, activeModuleId],
+  )
+
+  const activeLessonEditor = useMemo(
+    () => activeModule?.lessons.find((lesson) => lesson.id === activeLessonEditorId),
+    [activeModule, activeLessonEditorId],
   )
 
   const persist = (next: CourseBuilderState) => {
@@ -68,7 +90,13 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
     const restored = courseBuilderRepository.reset()
     setState(restored)
     setActiveModuleId(restored.modules[0]?.id ?? '')
+    setActiveLessonEditorId('')
     setSaveMessage('Demo restaurada localmente. Use Salvar alterações para sincronizar quando o backend estiver disponível.')
+  }
+
+  const selectModule = (moduleId: string) => {
+    setActiveModuleId(moduleId)
+    setActiveLessonEditorId('')
   }
 
   const addModule = () => {
@@ -81,6 +109,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
     }
     persist(next)
     setActiveModuleId(id)
+    setActiveLessonEditorId('')
   }
 
   const addLesson = () => {
@@ -94,6 +123,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
       durationMinutes: 10,
       required: true,
       position: activeModule.lessons.length,
+      content: {},
     }
     persist({
       ...state,
@@ -101,6 +131,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
         module.id === activeModule.id ? { ...module, lessons: [...module.lessons, lesson] } : module,
       ),
     })
+    setActiveLessonEditorId(lesson.id)
   }
 
   const updateLesson = (lessonId: string, patch: Partial<BuilderLesson>) => {
@@ -131,6 +162,9 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
 
   const totalMinutes = state.modules.flatMap((module) => module.lessons).reduce((sum, lesson) => sum + lesson.durationMinutes, 0)
   const totalLessons = state.modules.reduce((sum, module) => sum + module.lessons.length, 0)
+  const pendingRequiredContent = state.modules
+    .flatMap((module) => module.lessons)
+    .filter((lesson) => lesson.required && !isContentConfigured(lesson)).length
 
   const persistenceLabel = persistenceMode === 'server'
     ? 'Persistência server-side conectada'
@@ -158,7 +192,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
         <article><span>Módulos</span><strong>{state.modules.length}</strong></article>
         <article><span>Aulas</span><strong>{totalLessons}</strong></article>
         <article><span>Carga estimada</span><strong>{Math.floor(totalMinutes / 60)}h {totalMinutes % 60}min</strong></article>
-        <article><span>Avaliação</span><strong>{state.quiz.enabled ? `Nota mínima ${state.quiz.minimumScore}%` : 'Desativada'}</strong></article>
+        <article><span>Conteúdo obrigatório</span><strong>{pendingRequiredContent ? `${pendingRequiredContent} pendente(s)` : 'Configurado'}</strong></article>
       </section>
 
       <div className="builderLayout">
@@ -166,7 +200,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
           <div className="panelTitle"><h2>Estrutura do curso</h2><button onClick={addModule}>Novo módulo</button></div>
           <div className="moduleList">
             {state.modules.map((module, index) => (
-              <button key={module.id} className={module.id === activeModule?.id ? 'active' : ''} onClick={() => setActiveModuleId(module.id)}>
+              <button key={module.id} className={module.id === activeModule?.id ? 'active' : ''} onClick={() => selectModule(module.id)}>
                 <span>{String(index + 1).padStart(2, '0')}</span>
                 <div><strong>{module.title}</strong><small>{module.lessons.length} aulas</small></div>
               </button>
@@ -185,19 +219,36 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
               <div className="lessonTable">
                 <div className="lessonHeader"><span>Ordem</span><span>Aula</span><span>Tipo</span><span>Duração</span><span>Obrigatória</span><span>Ações</span></div>
                 {activeModule.lessons.map((lesson, index) => (
-                  <div className="lessonRow" key={lesson.id}>
+                  <div className={`lessonRow ${activeLessonEditorId === lesson.id ? 'editing' : ''}`} key={lesson.id}>
                     <span className="lessonIndex">{index + 1}</span>
-                    <input value={lesson.title} onChange={(event) => updateLesson(lesson.id, { title: event.target.value })} />
+                    <div className="lessonTitleCell">
+                      <input value={lesson.title} onChange={(event) => updateLesson(lesson.id, { title: event.target.value })} />
+                      <small className={isContentConfigured(lesson) ? 'contentReady' : 'contentPending'}>
+                        {isContentConfigured(lesson) ? 'Conteúdo configurado' : 'Conteúdo pendente'}
+                      </small>
+                    </div>
                     <select value={lesson.contentType} onChange={(event) => updateLesson(lesson.id, { contentType: event.target.value as ContentType })}>
                       {contentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                     <input type="number" min="0" value={lesson.durationMinutes} onChange={(event) => updateLesson(lesson.id, { durationMinutes: Number(event.target.value) || 0 })} />
                     <label className="switchLabel"><input type="checkbox" checked={lesson.required} onChange={(event) => updateLesson(lesson.id, { required: event.target.checked })} /><span>{lesson.required ? 'Sim' : 'Não'}</span></label>
-                    <div className="lessonActions"><button onClick={() => moveLesson(lesson.id, -1)} disabled={index === 0}>Subir</button><button onClick={() => moveLesson(lesson.id, 1)} disabled={index === activeModule.lessons.length - 1}>Descer</button></div>
+                    <div className="lessonActions">
+                      <button onClick={() => setActiveLessonEditorId(lesson.id)}>Editar conteúdo</button>
+                      <button onClick={() => moveLesson(lesson.id, -1)} disabled={index === 0}>Subir</button>
+                      <button onClick={() => moveLesson(lesson.id, 1)} disabled={index === activeModule.lessons.length - 1}>Descer</button>
+                    </div>
                   </div>
                 ))}
                 {!activeModule.lessons.length && <div className="emptyBuilder">Este módulo ainda não possui aulas.</div>}
               </div>
+
+              {activeLessonEditor && (
+                <LessonContentEditor
+                  lesson={activeLessonEditor}
+                  onClose={() => setActiveLessonEditorId('')}
+                  onChange={(content) => updateLesson(activeLessonEditor.id, { content })}
+                />
+              )}
             </>
           ) : <div className="emptyBuilder">Crie um módulo para começar.</div>}
         </section>
