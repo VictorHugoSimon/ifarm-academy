@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { LessonContentEditor } from '../components/LessonContentEditor'
 import type { ContentType } from '../domain/academy'
-import type { BuilderLesson, CourseBuilderState } from '../domain/builder'
+import type { BuilderLesson, CertificateType, CourseBuilderState } from '../domain/builder'
 import { loadCourseBuilder, saveCourseBuilder } from '../services/courseBuilderApi'
 import { courseBuilderRepository } from '../services/courseBuilderRepository'
 import '../styles/course-builder.css'
@@ -12,16 +12,19 @@ const contentTypes: Array<[ContentType, string]> = [
   ['practical_activity', 'Atividade prática'], ['simulation', 'Simulação'], ['quiz', 'Quiz'], ['exam', 'Prova'],
 ]
 
+const certificateTypes: Array<[CertificateType, string]> = [
+  ['free_course', 'Curso livre'],
+  ['corporate_training', 'Treinamento corporativo'],
+  ['regulatory_training', 'Treinamento regulamentar'],
+  ['partner_certification', 'Certificação de parceiro'],
+]
+
 function isContentConfigured(lesson: BuilderLesson): boolean {
   const content = lesson.content ?? {}
   if (lesson.contentType === 'text') return Boolean(content.body?.trim())
   if (lesson.contentType === 'link') return Boolean(content.externalUrl?.trim())
-  if (['video', 'audio', 'pdf', 'presentation', 'file'].includes(lesson.contentType)) {
-    return Boolean(content.providerRef?.trim() || content.externalUrl?.trim())
-  }
-  if (['exercise', 'practical_activity', 'case_study', 'simulation'].includes(lesson.contentType)) {
-    return Boolean(content.instructions?.trim() || content.body?.trim())
-  }
+  if (['video', 'audio', 'pdf', 'presentation', 'file'].includes(lesson.contentType)) return Boolean(content.providerRef?.trim() || content.externalUrl?.trim())
+  if (['exercise', 'practical_activity', 'case_study', 'simulation'].includes(lesson.contentType)) return Boolean(content.instructions?.trim() || content.body?.trim())
   if (lesson.contentType === 'quiz' || lesson.contentType === 'exam') return Boolean(content.linkedQuizId?.trim())
   return true
 }
@@ -36,7 +39,6 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     let cancelled = false
     const courseId = state.courseId
-
     void loadCourseBuilder(courseId)
       .then((remote) => {
         if (cancelled) return
@@ -46,24 +48,13 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
         setActiveLessonEditorId('')
         setPersistenceMode('server')
       })
-      .catch(() => {
-        if (!cancelled) setPersistenceMode('local')
-      })
-
+      .catch(() => { if (!cancelled) setPersistenceMode('local') })
     return () => { cancelled = true }
-    // A hidratação server-side ocorre uma vez ao abrir o builder.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const activeModule = useMemo(
-    () => state.modules.find((module) => module.id === activeModuleId) ?? state.modules[0],
-    [state.modules, activeModuleId],
-  )
-
-  const activeLessonEditor = useMemo(
-    () => activeModule?.lessons.find((lesson) => lesson.id === activeLessonEditorId),
-    [activeModule, activeLessonEditorId],
-  )
+  const activeModule = useMemo(() => state.modules.find((module) => module.id === activeModuleId) ?? state.modules[0], [state.modules, activeModuleId])
+  const activeLessonEditor = useMemo(() => activeModule?.lessons.find((lesson) => lesson.id === activeLessonEditorId), [activeModule, activeLessonEditorId])
 
   const persist = (next: CourseBuilderState) => {
     setState(next)
@@ -94,19 +85,13 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
     setSaveMessage('Demo restaurada localmente. Use Salvar alterações para sincronizar quando o backend estiver disponível.')
   }
 
-  const selectModule = (moduleId: string) => {
-    setActiveModuleId(moduleId)
-    setActiveLessonEditorId('')
-  }
+  const selectModule = (moduleId: string) => { setActiveModuleId(moduleId); setActiveLessonEditorId('') }
 
   const addModule = () => {
     const title = window.prompt('Nome do novo módulo')?.trim()
     if (!title) return
     const id = crypto.randomUUID()
-    const next = {
-      ...state,
-      modules: [...state.modules, { id, title, description: '', position: state.modules.length, lessons: [] }],
-    }
+    const next = { ...state, modules: [...state.modules, { id, title, description: '', position: state.modules.length, lessons: [] }] }
     persist(next)
     setActiveModuleId(id)
     setActiveLessonEditorId('')
@@ -116,34 +101,14 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
     if (!activeModule) return
     const title = window.prompt('Nome da nova aula')?.trim()
     if (!title) return
-    const lesson: BuilderLesson = {
-      id: crypto.randomUUID(),
-      title,
-      contentType: 'video',
-      durationMinutes: 10,
-      required: true,
-      position: activeModule.lessons.length,
-      content: {},
-    }
-    persist({
-      ...state,
-      modules: state.modules.map((module) =>
-        module.id === activeModule.id ? { ...module, lessons: [...module.lessons, lesson] } : module,
-      ),
-    })
+    const lesson: BuilderLesson = { id: crypto.randomUUID(), title, contentType: 'video', durationMinutes: 10, required: true, position: activeModule.lessons.length, content: {} }
+    persist({ ...state, modules: state.modules.map((module) => module.id === activeModule.id ? { ...module, lessons: [...module.lessons, lesson] } : module) })
     setActiveLessonEditorId(lesson.id)
   }
 
   const updateLesson = (lessonId: string, patch: Partial<BuilderLesson>) => {
     if (!activeModule) return
-    persist({
-      ...state,
-      modules: state.modules.map((module) =>
-        module.id === activeModule.id
-          ? { ...module, lessons: module.lessons.map((lesson) => lesson.id === lessonId ? { ...lesson, ...patch } : lesson) }
-          : module,
-      ),
-    })
+    persist({ ...state, modules: state.modules.map((module) => module.id === activeModule.id ? { ...module, lessons: module.lessons.map((lesson) => lesson.id === lessonId ? { ...lesson, ...patch } : lesson) } : module) })
   }
 
   const moveLesson = (lessonId: string, direction: -1 | 1) => {
@@ -154,23 +119,13 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
     if (index < 0 || target < 0 || target >= items.length) return
     ;[items[index], items[target]] = [items[target], items[index]]
     const normalized = items.map((lesson, position) => ({ ...lesson, position }))
-    persist({
-      ...state,
-      modules: state.modules.map((module) => module.id === activeModule.id ? { ...module, lessons: normalized } : module),
-    })
+    persist({ ...state, modules: state.modules.map((module) => module.id === activeModule.id ? { ...module, lessons: normalized } : module) })
   }
 
   const totalMinutes = state.modules.flatMap((module) => module.lessons).reduce((sum, lesson) => sum + lesson.durationMinutes, 0)
   const totalLessons = state.modules.reduce((sum, module) => sum + module.lessons.length, 0)
-  const pendingRequiredContent = state.modules
-    .flatMap((module) => module.lessons)
-    .filter((lesson) => lesson.required && !isContentConfigured(lesson)).length
-
-  const persistenceLabel = persistenceMode === 'server'
-    ? 'Persistência server-side conectada'
-    : persistenceMode === 'checking'
-      ? 'Verificando persistência server-side'
-      : 'Modo local de desenvolvimento'
+  const pendingRequiredContent = state.modules.flatMap((module) => module.lessons).filter((lesson) => lesson.required && !isContentConfigured(lesson)).length
+  const persistenceLabel = persistenceMode === 'server' ? 'Persistência server-side conectada' : persistenceMode === 'checking' ? 'Verificando persistência server-side' : 'Modo local de desenvolvimento'
 
   return (
     <>
@@ -195,6 +150,16 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
         <article><span>Conteúdo obrigatório</span><strong>{pendingRequiredContent ? `${pendingRequiredContent} pendente(s)` : 'Configurado'}</strong></article>
       </section>
 
+      <section className="panel quizSettings">
+        <div><h2>Metadados de certificação</h2><p>Estes dados são congelados no certificado emitido e não mudam retroativamente.</p></div>
+        <label>Instrutor ou responsável <input value={state.instructorLabel ?? ''} onChange={(event) => persist({ ...state, instructorLabel: event.target.value })} placeholder="Nome do instrutor ou responsável" /></label>
+        <label>Tipo de certificado
+          <select value={state.certificateType ?? 'free_course'} onChange={(event) => persist({ ...state, certificateType: event.target.value as CertificateType })}>
+            {certificateTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </label>
+      </section>
+
       <div className="builderLayout">
         <aside className="builderModules panel">
           <div className="panelTitle"><h2>Estrutura do curso</h2><button onClick={addModule}>Novo módulo</button></div>
@@ -215,7 +180,6 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
                 <div><span>Módulo {activeModule.position + 1}</span><h2>{activeModule.title}</h2><p>{activeModule.description || 'Sem descrição.'}</p></div>
                 <button className="primary" onClick={addLesson}>Adicionar aula</button>
               </div>
-
               <div className="lessonTable">
                 <div className="lessonHeader"><span>Ordem</span><span>Aula</span><span>Tipo</span><span>Duração</span><span>Obrigatória</span><span>Ações</span></div>
                 {activeModule.lessons.map((lesson, index) => (
@@ -223,13 +187,9 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
                     <span className="lessonIndex">{index + 1}</span>
                     <div className="lessonTitleCell">
                       <input value={lesson.title} onChange={(event) => updateLesson(lesson.id, { title: event.target.value })} />
-                      <small className={isContentConfigured(lesson) ? 'contentReady' : 'contentPending'}>
-                        {isContentConfigured(lesson) ? 'Conteúdo configurado' : 'Conteúdo pendente'}
-                      </small>
+                      <small className={isContentConfigured(lesson) ? 'contentReady' : 'contentPending'}>{isContentConfigured(lesson) ? 'Conteúdo configurado' : 'Conteúdo pendente'}</small>
                     </div>
-                    <select value={lesson.contentType} onChange={(event) => updateLesson(lesson.id, { contentType: event.target.value as ContentType })}>
-                      {contentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                    </select>
+                    <select value={lesson.contentType} onChange={(event) => updateLesson(lesson.id, { contentType: event.target.value as ContentType })}>{contentTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
                     <input type="number" min="0" value={lesson.durationMinutes} onChange={(event) => updateLesson(lesson.id, { durationMinutes: Number(event.target.value) || 0 })} />
                     <label className="switchLabel"><input type="checkbox" checked={lesson.required} onChange={(event) => updateLesson(lesson.id, { required: event.target.checked })} /><span>{lesson.required ? 'Sim' : 'Não'}</span></label>
                     <div className="lessonActions">
@@ -241,15 +201,7 @@ export function CourseBuilderPage({ onBack }: { onBack: () => void }) {
                 ))}
                 {!activeModule.lessons.length && <div className="emptyBuilder">Este módulo ainda não possui aulas.</div>}
               </div>
-
-              {activeLessonEditor && (
-                <LessonContentEditor
-                  courseId={state.courseId}
-                  lesson={activeLessonEditor}
-                  onClose={() => setActiveLessonEditorId('')}
-                  onChange={(content) => updateLesson(activeLessonEditor.id, { content })}
-                />
-              )}
+              {activeLessonEditor && <LessonContentEditor courseId={state.courseId} lesson={activeLessonEditor} onClose={() => setActiveLessonEditorId('')} onChange={(content) => updateLesson(activeLessonEditor.id, { content })} />}
             </>
           ) : <div className="emptyBuilder">Crie um módulo para começar.</div>}
         </section>

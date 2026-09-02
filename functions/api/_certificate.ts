@@ -19,9 +19,20 @@ export async function tryIssueCertificate(db: any, input: CertificateIssueInput)
   if (!policy) return { issued: false, reason: 'completion_policy_missing' }
 
   const courseId = String(policy.course_id ?? '')
-  const courseTitle = String(policy.course_title ?? '').trim()
+  const course = courseId
+    ? await db.prepare(`
+        SELECT id, title, instructor_label, certificate_type
+        FROM academy_courses
+        WHERE tenant_id=? AND id=?
+        LIMIT 1
+      `).bind(input.tenantId, courseId).first()
+    : null
+
+  const courseTitle = String(course?.title ?? policy.course_title ?? '').trim()
+  const instructorLabel = String(course?.instructor_label ?? '').trim()
+  const certificateType = String(course?.certificate_type ?? 'free_course').trim()
   const studentName = String(input.studentName ?? '').trim()
-  if (!courseId || !courseTitle || !studentName) {
+  if (!courseId || !courseTitle || !studentName || !instructorLabel) {
     return { issued: false, reason: 'certificate_metadata_incomplete' }
   }
 
@@ -64,15 +75,65 @@ export async function tryIssueCertificate(db: any, input: CertificateIssueInput)
     }
   }
 
+  const workload = await db.prepare(`
+    SELECT COALESCE(SUM(duration_minutes), 0) AS workload_minutes
+    FROM academy_course_lessons
+    WHERE tenant_id=? AND course_id=?
+  `).bind(input.tenantId, courseId).first()
+  const workloadMinutes = Math.max(0, Number(workload?.workload_minutes ?? 0))
+
+  const enrollment = await db.prepare(`
+    SELECT completed_at
+    FROM academy_enrollments
+    WHERE tenant_id=? AND student_id=? AND course_id=?
+    LIMIT 1
+  `).bind(input.tenantId, input.studentId, courseId).first()
+
   const id = crypto.randomUUID()
   const issuedAt = new Date().toISOString()
+  const completionDate = String(enrollment?.completed_at ?? issuedAt)
   const publicCode = 'IFA-' + issuedAt.slice(0, 4) + '-' + crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()
 
-  await db.prepare("INSERT INTO academy_certificates (id, public_code, student_id, student_name, course_id, course_title, final_score, issued_at, status, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?)")
-    .bind(id, publicCode, input.studentId, studentName, courseId, courseTitle, finalScore, issuedAt, input.tenantId).run()
+  await db.prepare(`
+    INSERT INTO academy_certificates (
+      id, public_code, student_id, student_name, course_id, course_title,
+      final_score, issued_at, status, tenant_id, workload_minutes,
+      instructor_label, certificate_type, completion_date, metadata_version
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, 1)
+  `).bind(
+    id,
+    publicCode,
+    input.studentId,
+    studentName,
+    courseId,
+    courseTitle,
+    finalScore,
+    issuedAt,
+    input.tenantId,
+    workloadMinutes,
+    instructorLabel,
+    certificateType,
+    completionDate,
+  ).run()
 
   return {
     issued: true,
-    certificate: { id, publicCode, tenantId: input.tenantId, studentId: input.studentId, studentName, courseId, courseTitle, finalScore, issuedAt, status: 'valid' },
+    certificate: {
+      id,
+      publicCode,
+      tenantId: input.tenantId,
+      studentId: input.studentId,
+      studentName,
+      courseId,
+      courseTitle,
+      finalScore,
+      issuedAt,
+      completionDate,
+      workloadMinutes,
+      instructorLabel,
+      certificateType,
+      metadataVersion: 1,
+      status: 'valid',
+    },
   }
 }

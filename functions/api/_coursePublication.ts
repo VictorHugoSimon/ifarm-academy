@@ -74,6 +74,10 @@ export async function evaluateCourseReadiness(db: any, tenantId: string, courseI
   const issues: string[] = []
 
   if (!String(course.title ?? '').trim()) issues.push('Curso sem título.')
+  if (!String(course.instructor_label ?? '').trim()) issues.push('Curso precisa informar instrutor ou responsável pelo certificado.')
+  if (!['free_course', 'corporate_training', 'regulatory_training', 'partner_certification'].includes(String(course.certificate_type ?? ''))) {
+    issues.push('Tipo de certificado inválido ou não configurado.')
+  }
   if (moduleCount < 1) issues.push('Curso precisa ter ao menos um módulo.')
   if (lessonCount < 1) issues.push('Curso precisa ter ao menos uma aula.')
   if (requiredLessonCount < 1) issues.push('Curso precisa ter ao menos uma aula obrigatória.')

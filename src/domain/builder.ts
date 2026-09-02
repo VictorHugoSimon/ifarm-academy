@@ -1,5 +1,11 @@
 import type { ContentType } from './academy'
 
+export type CertificateType =
+  | 'free_course'
+  | 'corporate_training'
+  | 'regulatory_training'
+  | 'partner_certification'
+
 export interface LessonContentDraft {
   body?: string
   instructions?: string
@@ -32,6 +38,8 @@ export interface BuilderModule {
 export interface CourseBuilderState {
   courseId: string
   title: string
+  instructorLabel?: string
+  certificateType?: CertificateType
   modules: BuilderModule[]
   quiz: {
     enabled: boolean
