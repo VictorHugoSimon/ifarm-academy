@@ -9,6 +9,7 @@ import {
   loadCompanyPathAssignments,
   loadCompanyRenewals,
   loadEnterpriseCatalog,
+  startCompanyRenewalCycle,
   type CompanyLearningPathRecord,
   type CompanyMemberRecord,
   type CompanyPathAssignmentRecord,
@@ -42,6 +43,7 @@ export function EnterprisePathsPage() {
   const [loading, setLoading] = useState(true)
   const [serverAvailable, setServerAvailable] = useState(true)
   const [message, setMessage] = useState('')
+  const [renewalStartingId, setRenewalStartingId] = useState('')
 
   const [pathForm, setPathForm] = useState({
     name: '', description: '', defaultRenewalMonths: '', selectedCourses: [] as string[],
@@ -149,12 +151,27 @@ export function EnterprisePathsPage() {
     }
   }
 
+  async function handleStartRenewalCycle(assignmentId: string) {
+    if (!window.confirm('Iniciar um novo ciclo de treinamento? O novo ciclo começa com progresso, tentativas e certificado zerados. O histórico anterior será preservado.')) return
+    setRenewalStartingId(assignmentId)
+    setMessage('Criando novo ciclo auditável...')
+    try {
+      const result = await startCompanyRenewalCycle({ assignmentId })
+      await refreshCompany(companyId)
+      setMessage(`Novo ciclo ${result.data.cycleNumber} iniciado para ${result.data.courseTitle}. Estado acadêmico anterior preservado.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Não foi possível iniciar o novo ciclo.')
+    } finally {
+      setRenewalStartingId('')
+    }
+  }
+
   return (
     <div className="enterprisePage">
       <div className="pageHeader">
         <div>
           <h1>Trilhas empresariais</h1>
-          <p>Capacitação obrigatória, acompanhamento por colaborador e monitoramento configurável de renovação.</p>
+          <p>Capacitação obrigatória, acompanhamento por colaborador e ciclos recorrentes auditáveis.</p>
           <small>{loading ? 'Carregando...' : serverAvailable ? 'Trilhas conectadas ao backend da Academy' : 'Backend indisponível neste ambiente'}</small>
           {message && <small className="enterpriseMessage">{message}</small>}
         </div>
@@ -178,7 +195,7 @@ export function EnterprisePathsPage() {
               <article><span>Trilhas ativas</span><strong>{activePaths.length}</strong></article>
               <article><span>Atribuições de trilha</span><strong>{assignments.filter((item) => item.status !== 'cancelled').length}</strong></article>
               <article><span>Renovações vencidas</span><strong>{renewals?.summary.due ?? 0}</strong></article>
-              <article><span>Próximos 30 dias</span><strong>{renewals?.summary.upcoming ?? 0}</strong></article>
+              <article><span>Prontas para novo ciclo</span><strong>{renewals?.summary.readyToStart ?? 0}</strong></article>
             </section>
           )}
 
@@ -204,7 +221,7 @@ export function EnterprisePathsPage() {
                 <label>Colaborador<select required value={assignmentForm.memberId} onChange={(event) => setAssignmentForm({ ...assignmentForm, memberId: event.target.value })}><option value="">Selecione</option>{members.filter((item) => item.status === 'active').map((member) => <option key={member.id} value={member.id}>{member.displayName}{member.jobTitle ? ` · ${member.jobTitle}` : ''}</option>)}</select></label>
                 <label>Trilha<select required value={assignmentForm.pathId} onChange={(event) => setAssignmentForm({ ...assignmentForm, pathId: event.target.value })}><option value="">Selecione</option>{activePaths.map((path) => <option key={path.id} value={path.id}>{path.name}</option>)}</select></label>
                 <label>Prazo da trilha<input type="datetime-local" value={assignmentForm.dueAt} onChange={(event) => setAssignmentForm({ ...assignmentForm, dueAt: event.target.value })} /></label>
-                <div className="enterprisePolicyNote">Cursos já atribuídos são reutilizados. Matrículas concluídas nunca são reabertas automaticamente.</div>
+                <div className="enterprisePolicyNote">Cursos já atribuídos são reutilizados. Conclusões antigas permanecem preservadas como ciclos históricos.</div>
                 <button className="primary" type="submit" disabled={!members.length || !activePaths.length}>Atribuir trilha</button>
               </form>
             </div>
@@ -251,14 +268,21 @@ export function EnterprisePathsPage() {
           {selectedCompany && renewals && (
             <section className="panel enterpriseTablePanel enterpriseRenewalPanel">
               <div className="panelTitle"><h2>Renovações de treinamento</h2><span>{renewals.summary.configured} ciclos monitorados</span></div>
-              <div className="enterprisePolicyNote">{renewals.policy.note} Nesta versão a Academy monitora vencimentos, mas não reinicia progresso ou avaliações antigas automaticamente.</div>
+              <div className="enterprisePolicyNote">{renewals.policy.note} Um novo ciclo só é aberto na janela de renovação e começa sem reaproveitar progresso, tentativas, notas ou certificado do ciclo anterior.</div>
               <div className="enterpriseRenewalGrid">
                 {renewals.data.filter((item) => item.renewalState !== 'not_due').map((item) => (
                   <article key={item.assignmentId} className={item.renewalState}>
                     <div><strong>{item.displayName}</strong><small>{item.jobTitle || item.userId}</small></div>
-                    <div><strong>{item.courseTitle}</strong><small>Ciclo {item.renewalCycle} · a cada {item.renewalMonths} meses</small></div>
+                    <div><strong>{item.courseTitle}</strong><small>Ciclo acadêmico {item.learningCycleNumber ?? item.renewalCycle} · renovação {item.renewalCycle} · a cada {item.renewalMonths} meses</small></div>
                     <div><span>{item.renewalState === 'due' ? 'Renovação vencida' : 'Renovação próxima'}</span><strong>{formatDate(item.renewalDueAt)}</strong></div>
-                    <div>{item.certificateCode ? <a href={`/certificates/validate?code=${encodeURIComponent(item.certificateCode)}`} target="_blank" rel="noopener noreferrer">Ver certificado anterior</a> : <span>Sem certificado localizado</span>}</div>
+                    <div className="enterpriseRenewalActions">
+                      {item.certificateCode ? <a href={`/certificates/validate?code=${encodeURIComponent(item.certificateCode)}`} target="_blank" rel="noopener noreferrer">Ver certificado anterior</a> : <span>Sem certificado localizado</span>}
+                      {item.canStartNewCycle ? (
+                        <button className="primary" disabled={Boolean(renewalStartingId)} onClick={() => void handleStartRenewalCycle(item.assignmentId)}>
+                          {renewalStartingId === item.assignmentId ? 'Iniciando...' : 'Iniciar novo ciclo'}
+                        </button>
+                      ) : item.hasOpenAssignment ? <small>Novo ciclo já aberto</small> : <small>Renovação indisponível</small>}
+                    </div>
                   </article>
                 ))}
                 {!renewals.data.some((item) => item.renewalState !== 'not_due') && <div className="enterpriseEmpty">Nenhuma renovação vencida ou prevista para os próximos 30 dias.</div>}
