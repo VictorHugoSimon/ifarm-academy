@@ -1,17 +1,16 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type SyntheticEvent } from 'react'
 import { loadMediaPlayback } from '../services/mediaApi'
 import { saveLessonProgress, type StudentDeliveredLesson } from '../services/studentCourseApi'
 
 export function MediaLessonPlayer({
   courseId,
   lesson,
-  onProgressSaved,
+  onCompleted,
 }: {
   courseId: string
   lesson: StudentDeliveredLesson
-  onProgressSaved?: () => void | Promise<void>
+  onCompleted?: () => void | Promise<void>
 }) {
-  const mediaRef = useRef<HTMLMediaElement | null>(null)
   const lastSavedPositionRef = useRef(lesson.lastPositionSeconds)
   const savingRef = useRef(false)
   const [playbackUrl, setPlaybackUrl] = useState('')
@@ -21,6 +20,8 @@ export function MediaLessonPlayer({
 
   useEffect(() => {
     let cancelled = false
+    lastSavedPositionRef.current = lesson.lastPositionSeconds
+    setVisibleProgress(lesson.progressPercent)
     setLoading(true)
     setMessage('')
     void loadMediaPlayback(courseId, lesson.id)
@@ -34,7 +35,7 @@ export function MediaLessonPlayer({
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [courseId, lesson.id])
+  }, [courseId, lesson.id, lesson.lastPositionSeconds, lesson.progressPercent])
 
   async function persist(position: number, duration: number, completed = false) {
     if (savingRef.current) return
@@ -55,7 +56,7 @@ export function MediaLessonPlayer({
       })
       lastSavedPositionRef.current = position
       setVisibleProgress(progress)
-      await onProgressSaved?.()
+      if (completed) await onCompleted?.()
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível salvar a posição da mídia.')
     } finally {
@@ -66,8 +67,8 @@ export function MediaLessonPlayer({
   function handleLoadedMetadata(element: HTMLMediaElement) {
     const duration = Number.isFinite(element.duration) ? element.duration : 0
     const target = Math.max(0, lesson.lastPositionSeconds)
-    if (target > 0 && duration > 0) {
-      element.currentTime = Math.min(target, Math.max(0, duration - 1))
+    if (target > 0 && duration > 0 && target < duration) {
+      element.currentTime = target
     }
   }
 
@@ -97,24 +98,26 @@ export function MediaLessonPlayer({
     controls: true,
     preload: 'metadata' as const,
     src: playbackUrl,
-    onLoadedMetadata: (event: React.SyntheticEvent<HTMLMediaElement>) => handleLoadedMetadata(event.currentTarget),
-    onTimeUpdate: (event: React.SyntheticEvent<HTMLMediaElement>) => handleTimeUpdate(event.currentTarget),
-    onPause: (event: React.SyntheticEvent<HTMLMediaElement>) => void persist(event.currentTarget.currentTime, event.currentTarget.duration),
-    onEnded: (event: React.SyntheticEvent<HTMLMediaElement>) => void persist(event.currentTarget.duration || event.currentTarget.currentTime, event.currentTarget.duration, true),
+    onLoadedMetadata: (event: SyntheticEvent<HTMLMediaElement>) => handleLoadedMetadata(event.currentTarget),
+    onTimeUpdate: (event: SyntheticEvent<HTMLMediaElement>) => handleTimeUpdate(event.currentTarget),
+    onPause: (event: SyntheticEvent<HTMLMediaElement>) => void persist(event.currentTarget.currentTime, event.currentTarget.duration),
+    onEnded: (event: SyntheticEvent<HTMLMediaElement>) => void persist(event.currentTarget.duration || event.currentTarget.currentTime, event.currentTarget.duration, true),
   }
 
   return (
     <div className="academyMediaPlayer">
       <div className="academyMediaFrame">
         {lesson.contentType === 'audio'
-          ? <audio ref={(node) => { mediaRef.current = node }} {...sharedProps} />
-          : <video ref={(node) => { mediaRef.current = node }} playsInline {...sharedProps} />}
+          ? <audio {...sharedProps} />
+          : <video playsInline {...sharedProps} />}
       </div>
       <div className="academyMediaMeta">
         <strong>{lesson.title}</strong>
         <span>{visibleProgress}% concluído</span>
       </div>
-      {lesson.lastPositionSeconds > 0 && <small>Retomada disponível a partir de {Math.floor(lesson.lastPositionSeconds / 60)} min {lesson.lastPositionSeconds % 60} s.</small>}
+      {lesson.lastPositionSeconds > 0 && lesson.progressPercent < 100 && (
+        <small>Retomada disponível a partir de {Math.floor(lesson.lastPositionSeconds / 60)} min {lesson.lastPositionSeconds % 60} s.</small>
+      )}
       {message && <small>{message}</small>}
     </div>
   )
