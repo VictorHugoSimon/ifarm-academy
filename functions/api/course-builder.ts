@@ -8,6 +8,13 @@ const contentTypes = new Set([
   'quiz', 'exercise', 'practical_activity', 'case_study', 'simulation', 'exam',
 ])
 
+const certificateTypes = new Set([
+  'free_course',
+  'corporate_training',
+  'regulatory_training',
+  'partner_certification',
+])
+
 interface BuilderLessonInput {
   id: string
   title: string
@@ -29,6 +36,8 @@ interface BuilderModuleInput {
 interface BuilderStateInput {
   courseId: string
   title: string
+  instructorLabel: string
+  certificateType: string
   modules: BuilderModuleInput[]
   quiz: {
     enabled: boolean
@@ -42,7 +51,9 @@ function parseBuilderState(value: unknown): BuilderStateInput | null {
   const raw = value as Record<string, any>
   const courseId = String(raw.courseId ?? '').trim()
   const title = String(raw.title ?? '').trim()
-  if (!courseId || !title || !Array.isArray(raw.modules) || !raw.quiz || typeof raw.quiz !== 'object') return null
+  const instructorLabel = String(raw.instructorLabel ?? '').trim()
+  const certificateType = String(raw.certificateType ?? 'free_course').trim()
+  if (!courseId || !title || !certificateTypes.has(certificateType) || !Array.isArray(raw.modules) || !raw.quiz || typeof raw.quiz !== 'object') return null
 
   const minimumScore = Number(raw.quiz.minimumScore)
   const attemptsAllowed = Number(raw.quiz.attemptsAllowed)
@@ -97,6 +108,8 @@ function parseBuilderState(value: unknown): BuilderStateInput | null {
   return {
     courseId,
     title,
+    instructorLabel,
+    certificateType,
     modules,
     quiz: {
       enabled: raw.quiz.enabled === true,
@@ -154,6 +167,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   return json({ data: {
     courseId: course.id,
     title: course.title,
+    instructorLabel: course.instructor_label ?? '',
+    certificateType: course.certificate_type ?? 'free_course',
     modules: (modulesResult.results as any[]).map((row) => ({
       id: row.id,
       title: row.title,
@@ -197,13 +212,16 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     db.prepare(`
       INSERT INTO academy_courses (
         id, tenant_id, title, status, quiz_enabled, minimum_score, attempts_allowed,
+        instructor_label, certificate_type,
         created_by, updated_by, created_at, updated_at
-      ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title=excluded.title,
         quiz_enabled=excluded.quiz_enabled,
         minimum_score=excluded.minimum_score,
         attempts_allowed=excluded.attempts_allowed,
+        instructor_label=excluded.instructor_label,
+        certificate_type=excluded.certificate_type,
         updated_by=excluded.updated_by,
         updated_at=excluded.updated_at
     `).bind(
@@ -213,6 +231,8 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
       state.quiz.enabled ? 1 : 0,
       state.quiz.minimumScore,
       state.quiz.attemptsAllowed,
+      state.instructorLabel || null,
+      state.certificateType,
       auth.userId,
       auth.userId,
       now,
@@ -271,6 +291,8 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
       modules: state.modules.length,
       lessons: state.modules.reduce((sum, module) => sum + module.lessons.length, 0),
       quizEnabled: state.quiz.enabled,
+      certificateType: state.certificateType,
+      instructorConfigured: Boolean(state.instructorLabel),
     },
   }))
 
