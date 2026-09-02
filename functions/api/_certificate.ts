@@ -29,11 +29,26 @@ export async function tryIssueCertificate(db: any, input: CertificateIssueInput)
     .bind(input.tenantId, input.studentId, courseId).first()
   if (existing) return { issued: false, idempotent: true, reason: 'already_issued', certificate: existing }
 
-  const progress = await db.prepare("SELECT COUNT(*) AS completed FROM academy_progress WHERE tenant_id=? AND student_id=? AND course_id=? AND progress_percent=100")
-    .bind(input.tenantId, input.studentId, courseId).first()
+  const progress = await db.prepare(`
+    SELECT
+      COUNT(l.id) AS required,
+      SUM(CASE WHEN COALESCE(p.progress_percent, 0) >= 100 THEN 1 ELSE 0 END) AS completed
+    FROM academy_course_lessons l
+    LEFT JOIN academy_progress p
+      ON p.tenant_id=l.tenant_id
+      AND p.course_id=l.course_id
+      AND p.lesson_id=l.id
+      AND p.student_id=?
+    WHERE l.tenant_id=? AND l.course_id=? AND l.required=1
+  `).bind(input.studentId, input.tenantId, courseId).first()
+
+  const requiredByStructure = Number(progress?.required ?? 0)
   const completed = Number(progress?.completed ?? 0)
-  const required = Number(policy.required_lessons_count ?? 0)
-  if (completed < required) return { issued: false, reason: 'progress_incomplete', details: { completed, required } }
+  const requiredByPolicy = Number(policy.required_lessons_count ?? 0)
+  const required = Math.max(requiredByStructure, requiredByPolicy)
+  if (required < 1 || completed < required) {
+    return { issued: false, reason: 'progress_incomplete', details: { completed, required } }
+  }
 
   let finalScore: number | null = null
   if (Number(policy.assessment_required) === 1) {

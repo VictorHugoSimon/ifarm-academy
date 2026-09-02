@@ -1,7 +1,7 @@
 import { auditStatement } from '../../_audit'
 import { requireTrustedContext } from '../../_auth'
 import { scoreAssessment, resolveAutomaticStatus, type PolicyQuestion, type SubmittedAnswer } from '../../_assessment'
-import { tryIssueCertificate } from '../../_certificate'
+import { tryCompleteEnrollment } from '../../_completion'
 import { bodyJson, dbOr503, json, safeJson, type Env } from '../../_shared'
 
 export const onRequestPost = async ({ env, request, params }: { env: Env; request: Request; params: Record<string,string> }) => {
@@ -61,21 +61,31 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
     }),
   ])
 
-  let certificate = null
-  if (status === 'approved') {
-    certificate = await tryIssueCertificate(db, {
+  let enrollmentCompletion: any = null
+  const courseId = String(policy.course_id ?? '').trim()
+  if (status === 'approved' && courseId) {
+    enrollmentCompletion = await tryCompleteEnrollment(db, {
       tenantId: context.tenantId,
       studentId: context.userId,
       studentName: context.displayName ?? attempt.student_name_snapshot ?? null,
-      quizId: String(attempt.quiz_id),
+      courseId,
     })
 
-    if (certificate.issued && certificate.certificate) {
+    if (enrollmentCompletion.newlyCompleted) {
+      await auditStatement(db, context, {
+        action: 'enrollment.completed',
+        resourceType: 'enrollment',
+        resourceId: courseId + ':' + context.userId,
+        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id, courseId },
+      }).run()
+    }
+
+    if (enrollmentCompletion.certificate?.issued && enrollmentCompletion.certificate.certificate) {
       await auditStatement(db, context, {
         action: 'certificate.auto_issued',
         resourceType: 'certificate',
-        resourceId: String(certificate.certificate.id ?? ''),
-        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id },
+        resourceId: String(enrollmentCompletion.certificate.certificate.id ?? ''),
+        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id, courseId },
       }).run()
     }
   }
@@ -89,6 +99,7 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
     automaticResult: result,
     finalPercentage: result.percentage,
     submittedAt,
-    certificate,
+    enrollmentCompletion,
+    certificate: enrollmentCompletion?.certificate ?? null,
   }})
 }

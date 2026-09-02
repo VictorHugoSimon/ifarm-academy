@@ -1,7 +1,7 @@
 import { auditStatement } from '../../_audit'
 import { requireAdminContext } from '../../_auth'
 import { resolveManualReview, type AutomaticAssessmentResult, type ManualReviewItem, type PolicyQuestion } from '../../_assessment'
-import { tryIssueCertificate } from '../../_certificate'
+import { tryCompleteEnrollment } from '../../_completion'
 import { bodyJson, dbOr503, json, safeJson, type Env } from '../../_shared'
 
 export const onRequestPost = async ({ env, request, params }: { env: Env; request: Request; params: Record<string, string> }) => {
@@ -95,25 +95,36 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
 
   await db.batch(statements)
 
-  let certificate = null
-  if (result.status === 'approved') {
-    certificate = await tryIssueCertificate(db, {
+  let enrollmentCompletion: any = null
+  const courseId = String(policy.course_id ?? '').trim()
+  if (result.status === 'approved' && courseId) {
+    enrollmentCompletion = await tryCompleteEnrollment(db, {
       tenantId: auth.tenantId,
       studentId: String(attempt.student_id),
       studentName: attempt.student_name_snapshot == null ? null : String(attempt.student_name_snapshot),
-      quizId: String(attempt.quiz_id),
+      courseId,
     })
 
-    if (certificate.issued && certificate.certificate) {
+    if (enrollmentCompletion.newlyCompleted) {
+      await auditStatement(db, auth, {
+        action: 'enrollment.completed',
+        resourceType: 'enrollment',
+        resourceId: courseId + ':' + String(attempt.student_id),
+        metadata: { source: 'manual_review', attemptId: id, quizId: attempt.quiz_id, courseId },
+      }).run()
+    }
+
+    if (enrollmentCompletion.certificate?.issued && enrollmentCompletion.certificate.certificate) {
       await auditStatement(db, auth, {
         action: 'certificate.auto_issued',
         resourceType: 'certificate',
-        resourceId: String(certificate.certificate.id ?? ''),
+        resourceId: String(enrollmentCompletion.certificate.certificate.id ?? ''),
         metadata: {
           source: 'manual_review',
           attemptId: id,
           studentId: attempt.student_id,
           quizId: attempt.quiz_id,
+          courseId,
         },
       }).run()
     }
@@ -130,6 +141,7 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
     reviewerId,
     reviewerName,
     reviewedAt,
-    certificate,
+    enrollmentCompletion,
+    certificate: enrollmentCompletion?.certificate ?? null,
   }})
 }
