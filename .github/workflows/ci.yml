@@ -58,6 +58,9 @@ jobs:
       - name: Instructor governance fixtures
         run: python3 scripts/integration_instructor_governance_contract.py
 
+      - name: Reporting integration fixtures
+        run: python3 scripts/integration_reports_contract.py
+
       - name: Build
         run: npm run build
 
