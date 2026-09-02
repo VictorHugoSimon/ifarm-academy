@@ -55,7 +55,7 @@ export function lessonContentPublicationIssue(contentType: string, content: Less
   if (contentType === 'text') return content.body ? null : 'conteúdo textual vazio'
   if (contentType === 'link') return content.externalUrl ? null : 'link externo não informado'
   if (contentType === 'pdf' || contentType === 'presentation' || contentType === 'file') {
-    return content.externalUrl ? null : 'arquivo/material ainda não possui URL autorizada'
+    return content.providerRef || content.externalUrl ? null : 'arquivo/material ainda não possui referência de storage ou URL autorizada'
   }
   if (contentType === 'video' || contentType === 'audio') {
     return content.providerRef || content.externalUrl ? null : 'mídia ainda não possui referência de provedor ou URL autorizada'
