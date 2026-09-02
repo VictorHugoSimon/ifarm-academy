@@ -1,5 +1,6 @@
 export interface Env {
   ACADEMY_DB?: any
+  ACADEMY_STORAGE?: any
   ACADEMY_ADMIN_PROXY_SECRET?: string
 }
 
@@ -10,6 +11,11 @@ export function json(data: unknown, status = 200): Response {
 export function dbOr503(env: Env): any | Response {
   if (!env.ACADEMY_DB) return json({ error: 'ACADEMY_DB binding not configured' }, 503)
   return env.ACADEMY_DB
+}
+
+export function storageOr503(env: Env): any | Response {
+  if (!env.ACADEMY_STORAGE) return json({ error: 'ACADEMY_STORAGE binding not configured' }, 503)
+  return env.ACADEMY_STORAGE
 }
 
 export async function bodyJson(request: Request): Promise<Record<string, unknown>> {
