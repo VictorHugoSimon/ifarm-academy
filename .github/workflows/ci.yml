@@ -55,6 +55,9 @@ jobs:
       - name: Events and Smart Farm Experience fixtures
         run: python3 scripts/integration_events_contract.py
 
+      - name: Instructor governance fixtures
+        run: python3 scripts/integration_instructor_governance_contract.py
+
       - name: Build
         run: npm run build
 
