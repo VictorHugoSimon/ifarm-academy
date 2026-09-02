@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.28
+## Concluído até v0.29
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder persistido em API/D1.
@@ -20,42 +20,36 @@
 - CI com migrations, integração de banco, typecheck, testes e build.
 - Área empresarial com empresas e colaboradores vinculados ao `userId` iFarm.
 - Atribuição de curso publicado com obrigatoriedade e prazo.
-- Matrícula conciliada automaticamente ao atribuir um curso.
-- Conclusões existentes preservadas e nunca reabertas por uma atribuição corporativa.
-- Painel empresarial com progresso, atrasos e certificados.
-- Trilhas empresariais configuráveis por empresa e tenant.
-- Cursos obrigatórios ordenados dentro da trilha.
-- Atribuição de trilha reutilizando cursos/matrículas existentes sem duplicar entitlement.
-- Progresso agregado e atraso por trilha.
-- Periodicidade de treinamento configurável, sem inferir prazo regulatório.
-- Monitor de renovações vencidas/próximas/futuras.
-- `academy_learning_cycles` como fonte de verdade para passagens recorrentes pelo curso.
-- Backfill de dados anteriores como ciclo 1.
-- Progresso isolado por `cycle_id`.
-- Tentativas e limites de avaliação isolados por ciclo.
-- Certificados históricos múltiplos por curso, um por ciclo.
-- Atribuições corporativas ligadas ao ciclo acadêmico correspondente.
-- Conclusão de ciclo fechando matrícula, atribuição corporativa e trilha obrigatória quando aplicável.
-- Renovação empresarial criando ciclo novo sem copiar progresso, respostas, notas ou certificado anterior.
-- Gate de CI específico para migration e isolamento entre ciclos.
+- Trilhas empresariais, renovação configurável e ciclos acadêmicos auditáveis.
+- Progresso, avaliações e certificados isolados por ciclo.
+- Renovação empresarial criando ciclo novo sem copiar estado acadêmico anterior.
+- Eventos para workshops, dias de campo, aulas práticas, treinamentos e webinars.
+- Eventos gratuitos, patrocinados e pagos modelados sem contornar checkout.
+- Smart Farm Experience identificável como fazenda-escola/laboratório vivo.
+- Inscrição de participante com capacidade e lista de espera.
+- Cancelamento com preparação para promoção da fila.
+- Gestão de presença, check-in, checkout, ausência e evidências.
+- Evidências preparadas para manual, código, QR, geolocalização, assinatura e documento.
+- Gate de CI específico para eventos e isolamento tenant/evento/empresa.
 
 ## Próximas prioridades
 1. Lockfile íntegro e migração do CI de `npm install` para `npm ci` quando puder ser gerado em ambiente com rede e integridade verificável.
 2. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
 3. Integração definitiva com sessão/RBAC do iFarm Core, incluindo escopo confiável de `company_admin` por empresa.
-4. Eventos/Smart Farm Experience conectados a inscrições, presença e evidências.
-5. Gestão de instrutores, qualificações e responsabilidade técnica.
-6. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
-7. Relatórios acadêmicos e corporativos essenciais do MVP.
-8. Checkout e Mercado Pago após identity boundary real e validações comerciais/fiscais.
-9. Hardening operacional: observabilidade, backup/restore, rate limiting e alertas.
-10. Governança de validade/expiração pública de certificados regulatórios, separada da simples periodicidade de treinamento.
+4. Gestão de instrutores, qualificações e responsabilidade técnica.
+5. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
+6. Relatórios acadêmicos, empresariais e de eventos essenciais do MVP.
+7. Checkout e Mercado Pago, incluindo eventos pagos, após identity boundary real e validações comerciais/fiscais.
+8. Hardening operacional: observabilidade, backup/restore, rate limiting e alertas.
+9. Governança de validade/expiração pública de certificados regulatórios.
+10. Evolução Smart Farm Experience: QR/check-in, evidência prática, agenda de campo e integração com oferta comercial/cross-sell.
 
 ## Governança
 - `develop` é a linha de integração.
 - `main` e produção permanecem fora das mudanças até homologação do STAGE.
 - Não reutilizar secrets, bancos, tokens, buckets ou recursos de outros projetos.
 - O papel `company_admin` só deve ser liberado em homologação/produção quando o iFarm Core fornecer escopo confiável da empresa administrada.
-- Nenhuma periodicidade regulatória deve ser hardcoded. A Academy armazena a política configurada e sua evidência, mas a regra aplicável precisa ser validada tecnicamente/juridicamente.
+- Nenhuma periodicidade regulatória deve ser hardcoded.
 - Iniciar novo ciclo de treinamento não revoga automaticamente certificado anterior; validade pública deve ser política explícita.
+- Evento pago não gera inscrição/entitlement sem checkout confirmado.
 - CNAE, regras fiscais e percentual de comissão do marketplace permanecem TBD.
