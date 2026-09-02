@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.31
+## Concluído até v0.32
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder persistido em API/D1.
@@ -32,24 +32,27 @@
 - Qualificações técnicas/profissionais com evidência e status de verificação.
 - Papéis de autor, instrutor, revisor e responsável técnico por curso.
 - Responsabilidade técnica condicionada a qualificação verificada e confirmação humana explícita.
-- Relatórios acadêmicos do MVP com filtro de período.
-- Relatórios empresariais com conclusão, atrasos e renovações.
-- Relatórios de eventos com ocupação, presença e Smart Farm Experience.
-- Relatório de cobertura de governança técnica para treinamentos regulatórios.
+- Relatórios acadêmicos, empresariais, eventos e governança técnica.
 - Exportação CSV por bloco de relatório.
-- Gates específicos de CI para ciclos, eventos, instrutores e relatórios.
+- Política de validade de certificado por curso com confirmação humana explícita.
+- Histórico versionado das políticas de validade.
+- Snapshot imutável de validade em cada certificado emitido.
+- Situação pública `valid`, `expired` e `revoked` calculada sem reescrever histórico.
+- Ausência de política tratada como `not_configured`, nunca como validade indefinida.
+- Relatório de certificados regulatórios expirados, próximos do vencimento e sem política temporal.
+- Gates específicos de CI para ciclos, eventos, instrutores, relatórios e validade de certificados.
 
 ## Próximas prioridades
 1. Lockfile íntegro e migração do CI de `npm install` para `npm ci` quando puder ser gerado em ambiente com rede e integridade verificável.
 2. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
 3. Integração definitiva com sessão/RBAC do iFarm Core, incluindo escopo confiável de `company_admin` por empresa.
-4. Governança de validade/expiração pública de certificados regulatórios.
-5. Hardening operacional: observabilidade, backup/restore, rate limiting e alertas.
+4. Hardening operacional: request correlation, health/readiness, observabilidade, rate limiting, backup/restore e alertas.
+5. Evolução Smart Farm Experience: QR/check-in, evidência prática, agenda de campo e integração com cross-sell.
 6. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
 7. Checkout e Mercado Pago, incluindo eventos pagos, após identity boundary real e validações comerciais/fiscais.
-8. Evolução Smart Farm Experience: QR/check-in, evidência prática, agenda de campo e integração com cross-sell.
-9. Marketplace avançado, repasses e comissionamento após definição comercial.
-10. IA Tutor com RAG autorizado após a base de conteúdo, permissões e infraestrutura estarem homologadas.
+8. Marketplace avançado, repasses e comissionamento após definição comercial.
+9. IA Tutor com RAG autorizado após a base de conteúdo, permissões e infraestrutura estarem homologadas.
+10. White label avançado e automações comerciais após estabilização do MVP.
 
 ## Governança
 - `develop` é a linha de integração.
@@ -59,6 +62,8 @@
 - Nenhuma periodicidade regulatória deve ser hardcoded.
 - Qualificação verificada não equivale a declaração automática de habilitação legal; responsabilidade técnica exige decisão humana registrada.
 - A seção de governança técnica dos relatórios não constitui parecer de conformidade legal.
-- Iniciar novo ciclo de treinamento não revoga automaticamente certificado anterior; validade pública deve ser política explícita.
+- Renovação de treinamento e validade pública do certificado são políticas independentes.
+- Ausência de política temporal no certificado não significa validade regulatória indefinida.
+- Alterar a política atual não reescreve certificados já emitidos.
 - Evento pago não gera inscrição/entitlement sem checkout confirmado.
 - CNAE, regras fiscais e percentual de comissão do marketplace permanecem TBD.
