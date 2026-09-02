@@ -7,12 +7,13 @@ import {
   startServerAttempt,
   submitServerAttempt,
   type ServerAttempt,
+  type ServerAttemptSubmission,
   type StudentAssessmentDefinition,
 } from '../services/studentAssessmentApi'
 
 export function ServerQuizAttemptPanel({ quizId, onFinished }: {
   quizId: string
-  onFinished?: () => void | Promise<void>
+  onFinished?: (result: ServerAttemptSubmission) => void | Promise<void>
 }) {
   const [assessment, setAssessment] = useState<StudentAssessmentDefinition | null>(null)
   const [attempts, setAttempts] = useState<ServerAttempt[]>([])
@@ -113,7 +114,7 @@ export function ServerQuizAttemptPanel({ quizId, onFinished }: {
             : `Avaliação não aprovada${result.finalPercentage == null ? '' : `: ${result.finalPercentage}%`}.`,
       )
       await refresh()
-      await onFinished?.()
+      await onFinished?.(result)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível enviar a avaliação.')
     }

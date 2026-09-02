@@ -1,6 +1,7 @@
 import { auditStatement } from './_audit'
 import { requireAdminContext } from './_auth'
-import { bodyJson, dbOr503, json, type Env } from './_shared'
+import { normalizeLessonContent, type LessonContent } from './_lessonContent'
+import { bodyJson, dbOr503, json, safeJson, type Env } from './_shared'
 
 const contentTypes = new Set([
   'video', 'audio', 'pdf', 'presentation', 'text', 'file', 'link',
@@ -14,6 +15,7 @@ interface BuilderLessonInput {
   durationMinutes: number
   required: boolean
   position: number
+  content: LessonContent
 }
 
 interface BuilderModuleInput {
@@ -67,6 +69,10 @@ function parseBuilderState(value: unknown): BuilderStateInput | null {
       const durationMinutes = Number(lesson.durationMinutes)
       if (!lessonId || !lessonTitle || lessonIds.has(lessonId) || !contentTypes.has(contentType)) return null
       if (!Number.isInteger(durationMinutes) || durationMinutes < 0) return null
+
+      const normalizedContent = normalizeLessonContent(lesson.content)
+      if (!normalizedContent.ok) return null
+
       lessonIds.add(lessonId)
       lessons.push({
         id: lessonId,
@@ -75,6 +81,7 @@ function parseBuilderState(value: unknown): BuilderStateInput | null {
         durationMinutes,
         required: lesson.required !== false,
         position: lessonIndex,
+        content: normalizedContent.content,
       })
     }
 
@@ -139,6 +146,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       durationMinutes: Number(row.duration_minutes),
       required: Number(row.required) === 1,
       position: Number(row.position),
+      content: safeJson(row.content_json, {}),
     })
     lessonsByModule.set(moduleId, list)
   }
@@ -237,7 +245,7 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
         INSERT INTO academy_course_lessons (
           id, tenant_id, course_id, module_id, title, content_type,
           duration_minutes, required, position, content_json, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         lesson.id,
         auth.tenantId,
@@ -248,6 +256,7 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
         lesson.durationMinutes,
         lesson.required ? 1 : 0,
         lesson.position,
+        JSON.stringify(lesson.content),
         now,
         now,
       ))

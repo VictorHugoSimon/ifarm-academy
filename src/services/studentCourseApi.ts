@@ -1,3 +1,5 @@
+import type { LessonContentDraft } from '../domain/builder'
+
 export interface StudentDeliveredLesson {
   id: string
   moduleId: string
@@ -6,7 +8,7 @@ export interface StudentDeliveredLesson {
   durationMinutes: number
   required: boolean
   position: number
-  content: Record<string, unknown>
+  content: LessonContentDraft
   progressPercent: number
   lastPositionSeconds: number
   completedAt?: string | null

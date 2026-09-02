@@ -7,6 +7,7 @@ import { CertificateEligibilityPage } from './CertificateEligibilityPage'
 import { CoursePublicationPage } from './CoursePublicationPage'
 import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import '../styles/assessment-cert.css'
+import '../styles/lesson-content.css'
 
 type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'student' | 'review' | 'certificate'
 

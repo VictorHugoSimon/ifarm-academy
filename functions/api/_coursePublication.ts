@@ -1,3 +1,6 @@
+import { lessonContentPublicationIssue, type LessonContent } from './_lessonContent'
+import { safeJson } from './_shared'
+
 export type CourseStatus = 'draft' | 'review' | 'published' | 'archived'
 export type CoursePublicationAction = 'submit_review' | 'publish' | 'return_draft' | 'archive'
 
@@ -74,6 +77,21 @@ export async function evaluateCourseReadiness(db: any, tenantId: string, courseI
   if (moduleCount < 1) issues.push('Curso precisa ter ao menos um módulo.')
   if (lessonCount < 1) issues.push('Curso precisa ter ao menos uma aula.')
   if (requiredLessonCount < 1) issues.push('Curso precisa ter ao menos uma aula obrigatória.')
+
+  if (requiredLessonCount > 0) {
+    const requiredLessons = await db.prepare(`
+      SELECT id, title, content_type, content_json
+      FROM academy_course_lessons
+      WHERE tenant_id=? AND course_id=? AND required=1
+      ORDER BY position
+    `).bind(tenantId, courseId).all()
+
+    for (const row of requiredLessons.results as any[]) {
+      const content = safeJson(row.content_json, {}) as LessonContent
+      const issue = lessonContentPublicationIssue(String(row.content_type), content)
+      if (issue) issues.push(`Aula "${String(row.title)}": ${issue}.`)
+    }
+  }
 
   let quizId: string | null = null
   if (Number(course.quiz_enabled) === 1) {
