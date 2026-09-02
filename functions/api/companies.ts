@@ -1,14 +1,13 @@
 import { auditStatement } from './_audit'
-import { requireAdminContext } from './_auth'
+import { requireEnterpriseContext, requireGlobalEnterpriseAdmin } from './_enterpriseAuth'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
-const enterpriseRoles = ['academy_admin', 'ifarm_admin', 'company_admin', 'academy_company_admin']
-
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
 
+  const scoped = !auth.canManageAllCompanies
   const result = await db.prepare(`
     SELECT
       c.*,
@@ -17,9 +16,9 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       (SELECT COUNT(*) FROM academy_course_assignments a
        WHERE a.tenant_id=c.tenant_id AND a.company_id=c.id AND a.status!='cancelled') AS assignments
     FROM academy_companies c
-    WHERE c.tenant_id=?
+    WHERE c.tenant_id=? ${scoped ? 'AND c.id=?' : ''}
     ORDER BY c.status='active' DESC, c.name
-  `).bind(auth.tenantId).all()
+  `).bind(...(scoped ? [auth.tenantId, auth.companyScopeId] : [auth.tenantId])).all()
 
   return json({ data: (result.results as any[]).map((row) => ({
     id: row.id,
@@ -34,8 +33,10 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 }
 
 export const onRequestPost = async ({ env, request }: { env: Env; request: Request }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
+  const globalDenied = requireGlobalEnterpriseAdmin(auth)
+  if (globalDenied) return globalDenied
   const db = dbOr503(env); if (db instanceof Response) return db
 
   let body: Record<string, unknown>
