@@ -1,0 +1,14 @@
+name = "ifarm-academy-stage"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-09-01"
+
+# Exemplo de binding. Preencher somente após criar um D1 exclusivo da Academy STAGE.
+# Nunca reutilizar database_id de outro projeto.
+#
+# [[d1_databases]]
+# binding = "ACADEMY_DB"
+# database_name = "ifarm-academy-stage"
+# database_id = "<D1_DATABASE_ID_EXCLUSIVO_STAGE>"
+
+# ACADEMY_ADMIN_PROXY_SECRET deve ser cadastrado como secret no ambiente,
+# nunca neste arquivo e nunca com prefixo VITE_.

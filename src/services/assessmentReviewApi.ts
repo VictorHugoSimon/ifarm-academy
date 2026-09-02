@@ -10,8 +10,10 @@ export interface ReviewQueueQuestion {
 
 export interface ReviewQueueItem {
   id: string
+  tenantId: string
   quizId: string
   studentId: string
+  studentName?: string | null
   attemptNumber: number
   status: 'manual_review'
   answers: QuizAnswer[]
@@ -29,6 +31,14 @@ export interface ReviewQueueItem {
   startedAt: string
 }
 
+export interface ReviewQueueFilters {
+  quizId?: string
+  studentId?: string
+  submittedFrom?: string
+  submittedTo?: string
+  limit?: number
+}
+
 export interface ManualQuestionReview {
   questionId: string
   awardedPoints: number
@@ -44,23 +54,29 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>
 }
 
-export async function loadReviewQueue(quizId?: string): Promise<ReviewQueueItem[]> {
-  const query = quizId ? `?quizId=${encodeURIComponent(quizId)}` : ''
-  const result = await api<{ data: ReviewQueueItem[] }>(`/api/reviews${query}`)
+export async function loadReviewQueue(filters: ReviewQueueFilters = {}): Promise<ReviewQueueItem[]> {
+  const query = new URLSearchParams()
+  if (filters.quizId?.trim()) query.set('quizId', filters.quizId.trim())
+  if (filters.studentId?.trim()) query.set('studentId', filters.studentId.trim())
+  if (filters.submittedFrom) query.set('submittedFrom', filters.submittedFrom)
+  if (filters.submittedTo) query.set('submittedTo', filters.submittedTo)
+  if (filters.limit) query.set('limit', String(filters.limit))
+
+  const suffix = query.size ? `?${query.toString()}` : ''
+  const result = await api<{ data: ReviewQueueItem[] }>(`/api/reviews${suffix}`)
   return result.data
 }
 
 export async function submitManualReview(
   attemptId: string,
   input: {
-    reviewerId: string
-    reviewerName: string
     reviewNote?: string
     reviews: ManualQuestionReview[]
   },
 ) {
   return api<{ data: {
     id: string
+    tenantId: string
     status: 'approved' | 'failed'
     finalPercentage: number
     manualPoints: number
@@ -69,6 +85,12 @@ export async function submitManualReview(
     reviewerId: string
     reviewerName: string
     reviewedAt: string
+    certificate?: {
+      issued: boolean
+      idempotent?: boolean
+      reason?: string
+      certificate?: Record<string, unknown>
+    } | null
   } }>(`/api/attempts/${encodeURIComponent(attemptId)}/review`, {
     method: 'POST',
     body: JSON.stringify(input),
