@@ -171,10 +171,17 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
   const state = parseBuilderState(body)
   if (!state) return json({ error: 'Estado do Course Builder inválido' }, 400)
 
-  const owner = await db.prepare('SELECT tenant_id FROM academy_courses WHERE id=? LIMIT 1')
+  const existingCourse = await db.prepare('SELECT tenant_id, status FROM academy_courses WHERE id=? LIMIT 1')
     .bind(state.courseId).first()
-  if (owner && String(owner.tenant_id) !== auth.tenantId) {
+  if (existingCourse && String(existingCourse.tenant_id) !== auth.tenantId) {
     return json({ error: 'courseId já pertence a outro tenant' }, 409)
+  }
+  if (existingCourse && String(existingCourse.status) !== 'draft') {
+    return json({
+      error: 'Course Builder bloqueado fora de draft',
+      status: existingCourse.status,
+      instruction: 'Retorne o curso formalmente para draft antes de editar a estrutura.',
+    }, 409)
   }
 
   const now = new Date().toISOString()
