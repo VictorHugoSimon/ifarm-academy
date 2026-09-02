@@ -1,7 +1,11 @@
+import { requireAdminContext } from '../../_auth'
 import { resolveManualReview, type AutomaticAssessmentResult, type ManualReviewItem, type PolicyQuestion } from '../../_assessment'
 import { bodyJson, dbOr503, json, safeJson, type Env } from '../../_shared'
 
 export const onRequestPost = async ({ env, request, params }: { env: Env; request: Request; params: Record<string, string> }) => {
+  const auth = requireAdminContext(env, request, ['academy_admin', 'academy_reviewer', 'ifarm_admin'])
+  if (auth instanceof Response) return auth
+
   const db = dbOr503(env); if (db instanceof Response) return db
   const id = String(params.id ?? '')
   const attempt = await db.prepare(`SELECT * FROM academy_quiz_attempts WHERE id=?`).bind(id).first()
@@ -11,11 +15,10 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
   let body: Record<string, unknown>
   try { body = await bodyJson(request) } catch { return json({ error: 'JSON inválido' }, 400) }
 
-  const reviewerId = String(body.reviewerId ?? '').trim()
+  const reviewerId = auth.userId
   const reviewerName = String(body.reviewerName ?? '').trim() || reviewerId
   const reviewNote = String(body.reviewNote ?? '').trim()
   const reviews = Array.isArray(body.reviews) ? body.reviews as ManualReviewItem[] : []
-  if (!reviewerId) return json({ error: 'reviewerId é obrigatório' }, 400)
   if (!reviews.length) return json({ error: 'reviews é obrigatório' }, 400)
 
   const version = attempt.policy_version == null ? null : Number(attempt.policy_version)
