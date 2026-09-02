@@ -10,10 +10,11 @@ import { EnterpriseTrainingPage } from './EnterpriseTrainingPage'
 import { EnterprisePathsPage } from './EnterprisePathsPage'
 import { EventOperationsPage } from './EventOperationsPage'
 import { InstructorGovernancePage } from './InstructorGovernancePage'
+import { ReportsPage } from './ReportsPage'
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'instructors' | 'student' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'instructors' | 'reports' | 'student' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -24,6 +25,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['enterprise-paths', 'Trilhas empresariais'],
   ['events', 'Eventos'],
   ['instructors', 'Instrutores'],
+  ['reports', 'Relatórios'],
   ['student', 'Experiência do aluno'],
   ['review', 'Revisão manual'],
   ['certificate', 'Certificação'],
@@ -38,7 +40,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>iFarm Academy · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos Smart Farm, instrutores, responsabilidade técnica, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos Smart Farm, instrutores, responsabilidade técnica, relatórios, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -56,6 +58,7 @@ export function AcademyWorkspacePage() {
       {view === 'enterprise-paths' && <EnterprisePathsPage />}
       {view === 'events' && <EventOperationsPage />}
       {view === 'instructors' && <InstructorGovernancePage />}
+      {view === 'reports' && <ReportsPage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
       {view === 'review' && <AssessmentReviewPage />}
       {view === 'certificate' && <CertificateEligibilityPage />}
