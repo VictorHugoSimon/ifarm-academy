@@ -1,3 +1,5 @@
+import { learningCycleInsertStatement, nextCycleNumber } from './_cycle'
+
 export interface EnterpriseMemberRow {
   id: string
   user_id: string
@@ -37,13 +39,17 @@ export async function ensureEnterpriseCourseAssignment(db: any, input: EnsureAss
   `).bind(input.tenantId, input.companyId, input.member.id, input.courseId).first()
 
   const enrollment = await db.prepare(`
-    SELECT * FROM academy_enrollments
-    WHERE tenant_id=? AND course_id=? AND student_id=? LIMIT 1
+    SELECT e.*, lc.status AS cycle_status, lc.cycle_number
+    FROM academy_enrollments e
+    LEFT JOIN academy_learning_cycles lc ON lc.tenant_id=e.tenant_id AND lc.id=e.active_cycle_id
+    WHERE e.tenant_id=? AND e.course_id=? AND e.student_id=? LIMIT 1
   `).bind(input.tenantId, input.courseId, input.member.user_id).first()
   const completed = String(enrollment?.status ?? '') === 'completed'
+  const currentCycleId = enrollment?.active_cycle_id == null ? null : String(enrollment.active_cycle_id)
 
   if (existing) {
     const statements: any[] = []
+    const learningCycleId = existing.learning_cycle_id ?? currentCycleId
     if (['assigned', 'in_progress'].includes(String(existing.status))) {
       const stricterDueAt = earlierDate(existing.due_at, input.dueAt)
       const nextRequired = Number(existing.required) === 1 || input.required ? 1 : 0
@@ -51,81 +57,105 @@ export async function ensureEnterpriseCourseAssignment(db: any, input: EnsureAss
       if (
         stricterDueAt !== (existing.due_at ?? null) ||
         nextRequired !== Number(existing.required) ||
-        nextRenewal !== existing.renewal_months
+        nextRenewal !== existing.renewal_months ||
+        (!existing.learning_cycle_id && learningCycleId)
       ) {
         statements.push(db.prepare(`
           UPDATE academy_course_assignments
-          SET due_at=?, required=?, renewal_months=?, updated_at=?
+          SET due_at=?, required=?, renewal_months=?, learning_cycle_id=?, updated_at=?
           WHERE tenant_id=? AND id=?
-        `).bind(stricterDueAt, nextRequired, nextRenewal, input.now, input.tenantId, existing.id))
+        `).bind(stricterDueAt, nextRequired, nextRenewal, learningCycleId, input.now, input.tenantId, existing.id))
       }
-    } else if (String(existing.status) === 'completed' && existing.renewal_months == null && input.renewalMonths) {
-      // A nova política empresarial pode começar a monitorar uma conclusão histórica,
-      // sem reabrir matrícula, progresso, avaliação ou certificado já concluídos.
-      statements.push(db.prepare(`
-        UPDATE academy_course_assignments
-        SET renewal_months=?, updated_at=?
-        WHERE tenant_id=? AND id=? AND status='completed'
-      `).bind(input.renewalMonths, input.now, input.tenantId, existing.id))
+    } else if (String(existing.status) === 'completed') {
+      const nextRenewal = existing.renewal_months ?? input.renewalMonths
+      if (nextRenewal !== existing.renewal_months || (!existing.learning_cycle_id && learningCycleId)) {
+        statements.push(db.prepare(`
+          UPDATE academy_course_assignments
+          SET renewal_months=?, learning_cycle_id=?, updated_at=?
+          WHERE tenant_id=? AND id=? AND status='completed'
+        `).bind(nextRenewal, learningCycleId, input.now, input.tenantId, existing.id))
+      }
     }
-    return { id: String(existing.id), completed, existing: true, statements }
+    return { id: String(existing.id), completed, existing: true, learningCycleId, statements }
   }
 
   const assignmentId = crypto.randomUUID()
   const enrollmentId = enrollment ? String(enrollment.id) : crypto.randomUUID()
-  const previousCycle = await db.prepare(`
+  const previousAssignmentCycle = await db.prepare(`
     SELECT MAX(renewal_cycle) AS cycle FROM academy_course_assignments
     WHERE tenant_id=? AND company_id=? AND member_id=? AND course_id=?
   `).bind(input.tenantId, input.companyId, input.member.id, input.courseId).first()
-  const cycle = Math.max(1, Number(previousCycle?.cycle ?? 0) + 1)
+  const assignmentCycle = Math.max(1, Number(previousAssignmentCycle?.cycle ?? 0) + 1)
+  const statements: any[] = []
 
-  const statements = [
-    db.prepare(`
+  let learningCycleId = currentCycleId
+  let learningCycleNumber = enrollment?.cycle_number == null ? null : Number(enrollment.cycle_number)
+  const needsFreshCycle = !enrollment || String(enrollment.status) === 'cancelled' || !currentCycleId
+  if (needsFreshCycle) {
+    learningCycleId = crypto.randomUUID()
+    learningCycleNumber = await nextCycleNumber(db, input.tenantId, input.member.user_id, input.courseId)
+    statements.push(db.prepare(`
       INSERT INTO academy_enrollments (
         id, tenant_id, course_id, student_id, student_name_snapshot,
-        source, status, enrolled_at, completed_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        source, status, enrolled_at, completed_at, updated_at, active_cycle_id
+      ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, NULL, ?, ?)
       ON CONFLICT(tenant_id, course_id, student_id) DO UPDATE SET
         student_name_snapshot=excluded.student_name_snapshot,
-        status=CASE WHEN academy_enrollments.status='completed' THEN 'completed' ELSE 'active' END,
-        completed_at=CASE WHEN academy_enrollments.status='completed' THEN academy_enrollments.completed_at ELSE NULL END,
-        updated_at=excluded.updated_at
+        source=excluded.source,
+        status='active',
+        enrolled_at=excluded.enrolled_at,
+        completed_at=NULL,
+        updated_at=excluded.updated_at,
+        active_cycle_id=excluded.active_cycle_id
     `).bind(
+      enrollmentId, input.tenantId, input.courseId, input.member.user_id,
+      input.member.display_name_snapshot, input.source, input.now, input.now, learningCycleId,
+    ))
+    statements.push(learningCycleInsertStatement(db, {
+      id: learningCycleId,
+      tenantId: input.tenantId,
       enrollmentId,
-      input.tenantId,
-      input.courseId,
-      input.member.user_id,
-      input.member.display_name_snapshot,
-      input.source,
-      completed ? 'completed' : 'active',
-      enrollment?.enrolled_at ?? input.now,
-      completed ? enrollment.completed_at : null,
-      input.now,
-    ),
-    db.prepare(`
-      INSERT INTO academy_course_assignments (
-        id, tenant_id, company_id, member_id, course_id, required, due_at,
-        status, source, assigned_by, assigned_at, completed_at, updated_at,
-        renewal_months, renewal_cycle
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      assignmentId,
-      input.tenantId,
-      input.companyId,
-      input.member.id,
-      input.courseId,
-      input.required ? 1 : 0,
-      input.dueAt,
-      completed ? 'completed' : 'assigned',
-      input.source,
-      input.actorId,
-      input.now,
-      completed ? enrollment.completed_at ?? input.now : null,
-      input.now,
-      input.renewalMonths,
-      cycle,
-    ),
-  ]
+      studentId: input.member.user_id,
+      courseId: input.courseId,
+      cycleNumber: learningCycleNumber,
+      source: input.source,
+      companyId: input.companyId,
+      memberId: input.member.id,
+      dueAt: input.dueAt,
+      startedAt: input.now,
+    }))
+  } else {
+    statements.push(db.prepare(`
+      UPDATE academy_enrollments
+      SET student_name_snapshot=?, updated_at=?
+      WHERE tenant_id=? AND id=?
+    `).bind(input.member.display_name_snapshot, input.now, input.tenantId, enrollmentId))
+  }
 
-  return { id: assignmentId, completed, existing: false, statements }
+  statements.push(db.prepare(`
+    INSERT INTO academy_course_assignments (
+      id, tenant_id, company_id, member_id, course_id, required, due_at,
+      status, source, assigned_by, assigned_at, completed_at, updated_at,
+      renewal_months, renewal_cycle, learning_cycle_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    assignmentId,
+    input.tenantId,
+    input.companyId,
+    input.member.id,
+    input.courseId,
+    input.required ? 1 : 0,
+    input.dueAt,
+    completed ? 'completed' : 'assigned',
+    input.source,
+    input.actorId,
+    input.now,
+    completed ? enrollment.completed_at ?? input.now : null,
+    input.now,
+    input.renewalMonths,
+    assignmentCycle,
+    learningCycleId,
+  ))
+
+  return { id: assignmentId, completed, existing: false, learningCycleId, learningCycleNumber, statements }
 }

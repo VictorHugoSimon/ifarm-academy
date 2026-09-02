@@ -8,17 +8,22 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   const result = await db.prepare(`
     SELECT
-      id, public_code, course_id, course_title, final_score, issued_at, status,
-      workload_minutes, instructor_label, certificate_type, completion_date,
-      metadata_version
-    FROM academy_certificates
-    WHERE tenant_id=? AND student_id=?
-    ORDER BY issued_at DESC
+      cert.id, cert.cycle_id, cert.public_code, cert.course_id, cert.course_title,
+      cert.final_score, cert.issued_at, cert.status, cert.workload_minutes,
+      cert.instructor_label, cert.certificate_type, cert.completion_date,
+      cert.metadata_version, lc.cycle_number
+    FROM academy_certificates cert
+    LEFT JOIN academy_learning_cycles lc
+      ON lc.tenant_id=cert.tenant_id AND lc.id=cert.cycle_id
+    WHERE cert.tenant_id=? AND cert.student_id=?
+    ORDER BY cert.issued_at DESC
   `).bind(context.tenantId, context.userId).all()
 
   return json({
     data: (result.results as any[]).map((row) => ({
       id: row.id,
+      cycleId: row.cycle_id,
+      cycleNumber: row.cycle_number == null ? null : Number(row.cycle_number),
       publicCode: row.public_code,
       courseId: row.course_id,
       courseTitle: row.course_title,

@@ -32,6 +32,13 @@ export interface StudentCourseDelivery {
   enrollment: {
     id: string
     status: 'active' | 'completed'
+    activeCycleId: string
+    cycleNumber?: number | null
+    cycleStatus?: 'active' | 'completed' | 'cancelled' | null
+    cycleSource?: string | null
+    cycleStartedAt?: string | null
+    cycleCompletedAt?: string | null
+    cycleDueAt?: string | null
     enrolledAt: string
     completedAt?: string | null
   }
@@ -70,6 +77,8 @@ export async function saveLessonProgress(input: {
 }) {
   return request<{ data: {
     courseId: string
+    cycleId: string
+    cycleNumber?: number | null
     lessonId: string
     progressPercent: number
     lastPositionSeconds: number
@@ -77,6 +86,8 @@ export async function saveLessonProgress(input: {
     enrollmentCompletion?: {
       completed: boolean
       newlyCompleted?: boolean
+      cycleId?: string
+      cycleNumber?: number
       completedAt?: string
       certificate?: unknown
       reason?: string
