@@ -35,6 +35,8 @@ export interface CompanyAssignmentRecord {
   jobTitle?: string | null
   courseId: string
   courseTitle: string
+  learningCycleId?: string | null
+  learningCycleNumber?: number | null
   required: boolean
   dueAt?: string | null
   status: 'assigned' | 'in_progress' | 'completed' | 'cancelled'
@@ -101,6 +103,8 @@ export interface CompanyPathAssignmentRecord {
   courses: Array<{
     courseId: string
     courseTitle: string
+    learningCycleId?: string | null
+    learningCycleNumber?: number | null
     required: boolean
     renewalMonths?: number | null
     progressPercent: number
@@ -121,6 +125,8 @@ export interface CompanyRenewalRecord {
   jobTitle?: string | null
   courseId: string
   courseTitle: string
+  learningCycleId?: string | null
+  learningCycleNumber?: number | null
   completedAt: string
   renewalMonths: number
   renewalCycle: number
@@ -130,12 +136,51 @@ export interface CompanyRenewalRecord {
   certificateCode?: string | null
   certificateStatus?: string | null
   source: string
+  hasOpenAssignment: boolean
+  canStartNewCycle: boolean
 }
 
 export interface CompanyRenewalResponse {
   data: CompanyRenewalRecord[]
-  summary: { configured: number; due: number; upcoming: number; notDue: number }
+  summary: { configured: number; due: number; upcoming: number; notDue: number; readyToStart: number }
   policy: { upcomingWindowDays: number; note: string }
+}
+
+export interface CompanyRenewalCycleResult {
+  assignmentId: string
+  previousAssignmentId: string
+  cycleId: string
+  previousCycleId: string
+  cycleNumber: number
+  renewalCycle: number
+  companyId: string
+  memberId: string
+  studentId: string
+  courseId: string
+  courseTitle: string
+  status: 'assigned'
+  dueAt?: string | null
+  startedAt: string
+  cleanState: { progressRows: number; attempts: number; certificates: number }
+}
+
+export interface CompanyLearningCycleRecord {
+  id: string
+  studentId: string
+  displayName: string
+  jobTitle?: string | null
+  courseId: string
+  courseTitle: string
+  cycleNumber: number
+  status: 'active' | 'completed' | 'cancelled'
+  source: string
+  renewalOfCycleId?: string | null
+  dueAt?: string | null
+  startedAt: string
+  completedAt?: string | null
+  assignmentId?: string | null
+  renewalCycle?: number | null
+  renewalMonths?: number | null
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -225,4 +270,15 @@ export async function loadCompanyRenewals(companyId: string, state?: CompanyRene
   const query = new URLSearchParams({ companyId })
   if (state) query.set('state', state)
   return request<CompanyRenewalResponse>(`/api/company-renewals?${query.toString()}`)
+}
+
+export async function startCompanyRenewalCycle(input: { assignmentId: string; dueAt?: string }) {
+  return request<{ data: CompanyRenewalCycleResult }>('/api/company-renewal-cycles', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export async function loadCompanyLearningCycles(companyId: string): Promise<CompanyLearningCycleRecord[]> {
+  return (await request<{ data: CompanyLearningCycleRecord[] }>(`/api/company-renewal-cycles?companyId=${encodeURIComponent(companyId)}`)).data
 }
