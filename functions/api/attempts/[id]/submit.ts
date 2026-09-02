@@ -17,11 +17,21 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
   if (!attempt) return json({ error: 'Tentativa não encontrada neste tenant' }, 404)
   if (String(attempt.status) !== 'in_progress') return json({ error: 'Tentativa não está em andamento' }, 409)
 
+  const cycle = await db.prepare(`
+    SELECT * FROM academy_learning_cycles
+    WHERE tenant_id=? AND id=? AND student_id=? AND status='active'
+    LIMIT 1
+  `).bind(context.tenantId, attempt.cycle_id, context.userId).first()
+  if (!cycle) return json({ error: 'Ciclo acadêmico desta tentativa não está ativo' }, 409)
+
   const policy = await db.prepare(`
     SELECT * FROM academy_quiz_policies
     WHERE tenant_id=? AND quiz_id=? AND status='published'
   `).bind(context.tenantId, attempt.quiz_id).first()
   if (!policy) return json({ error: 'Política da avaliação indisponível neste tenant' }, 409)
+  if (String(policy.course_id ?? '') !== String(cycle.course_id)) {
+    return json({ error: 'Avaliação não pertence ao curso deste ciclo' }, 409)
+  }
 
   let body: Record<string, unknown>
   try { body = await bodyJson(request) } catch { return json({ error: 'JSON inválido' }, 400) }
@@ -42,22 +52,15 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
           policy_version=?, submitted_at=?, student_name_snapshot=COALESCE(student_name_snapshot, ?)
       WHERE tenant_id=? AND id=? AND student_id=? AND status='in_progress'
     `).bind(
-      status,
-      JSON.stringify(answers),
-      JSON.stringify(result),
-      result.percentage,
-      policyVersion,
-      submittedAt,
-      context.displayName ?? null,
-      context.tenantId,
-      id,
-      context.userId,
+      status, JSON.stringify(answers), JSON.stringify(result), result.percentage,
+      policyVersion, submittedAt, context.displayName ?? null,
+      context.tenantId, id, context.userId,
     ),
     auditStatement(db, context, {
       action: 'quiz_attempt.submitted',
       resourceType: 'quiz_attempt',
       resourceId: id,
-      metadata: { quizId: attempt.quiz_id, status, policyVersion, finalPercentage: result.percentage },
+      metadata: { quizId: attempt.quiz_id, cycleId: attempt.cycle_id, cycleNumber: cycle.cycle_number, status, policyVersion, finalPercentage: result.percentage },
     }),
   ])
 
@@ -69,14 +72,15 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
       studentId: context.userId,
       studentName: context.displayName ?? attempt.student_name_snapshot ?? null,
       courseId,
+      cycleId: String(attempt.cycle_id),
     })
 
     if (enrollmentCompletion.newlyCompleted) {
       await auditStatement(db, context, {
-        action: 'enrollment.completed',
-        resourceType: 'enrollment',
-        resourceId: courseId + ':' + context.userId,
-        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id, courseId },
+        action: 'learning_cycle.completed',
+        resourceType: 'learning_cycle',
+        resourceId: String(attempt.cycle_id),
+        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id, courseId, cycleNumber: cycle.cycle_number },
       }).run()
     }
 
@@ -85,13 +89,15 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
         action: 'certificate.auto_issued',
         resourceType: 'certificate',
         resourceId: String(enrollmentCompletion.certificate.certificate.id ?? ''),
-        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id, courseId },
+        metadata: { source: 'automatic_assessment', attemptId: id, quizId: attempt.quiz_id, courseId, cycleId: attempt.cycle_id },
       }).run()
     }
   }
 
   return json({ data: {
     id,
+    cycleId: attempt.cycle_id,
+    cycleNumber: Number(cycle.cycle_number ?? 1),
     tenantId: context.tenantId,
     status,
     minimumScore,
