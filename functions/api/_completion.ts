@@ -14,8 +14,8 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
     LIMIT 1
   `).bind(input.tenantId, input.courseId, input.studentId).first()
 
-  if (!enrollment) return { completed: false, reason: 'enrollment_missing' }
-  if (String(enrollment.status) === 'cancelled') return { completed: false, reason: 'enrollment_cancelled' }
+  if (!enrollment) return { completed: false, newlyCompleted: false, reason: 'enrollment_missing' }
+  if (String(enrollment.status) === 'cancelled') return { completed: false, newlyCompleted: false, reason: 'enrollment_cancelled' }
 
   const policy = await db.prepare(`
     SELECT * FROM academy_course_completion_policy
@@ -23,7 +23,7 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
     LIMIT 1
   `).bind(input.tenantId, input.courseId).first()
 
-  if (!policy) return { completed: false, reason: 'completion_policy_missing' }
+  if (!policy) return { completed: false, newlyCompleted: false, reason: 'completion_policy_missing' }
 
   const progress = await db.prepare(`
     SELECT
@@ -43,6 +43,7 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
   if (requiredLessons < 1 || completedLessons < requiredLessons) {
     return {
       completed: false,
+      newlyCompleted: false,
       reason: 'required_lessons_incomplete',
       details: { completedLessons, requiredLessons },
     }
@@ -51,7 +52,7 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
   let finalScore: number | null = null
   if (Number(policy.assessment_required) === 1) {
     const quizId = String(policy.quiz_id ?? '')
-    if (!quizId) return { completed: false, reason: 'assessment_policy_incomplete' }
+    if (!quizId) return { completed: false, newlyCompleted: false, reason: 'assessment_policy_incomplete' }
 
     const attempt = await db.prepare(`
       SELECT * FROM academy_quiz_attempts
@@ -60,16 +61,17 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
       LIMIT 1
     `).bind(input.tenantId, quizId, input.studentId).first()
 
-    if (!attempt) return { completed: false, reason: 'assessment_not_approved' }
+    if (!attempt) return { completed: false, newlyCompleted: false, reason: 'assessment_not_approved' }
     finalScore = Number(attempt.final_percentage)
     const minimumScore = Number(policy.minimum_score ?? 0)
     if (!Number.isFinite(finalScore) || finalScore < minimumScore) {
-      return { completed: false, reason: 'minimum_score_not_reached', details: { finalScore, minimumScore } }
+      return { completed: false, newlyCompleted: false, reason: 'minimum_score_not_reached', details: { finalScore, minimumScore } }
     }
   }
 
+  const newlyCompleted = String(enrollment.status) !== 'completed'
   const completedAt = enrollment.completed_at ? String(enrollment.completed_at) : new Date().toISOString()
-  if (String(enrollment.status) !== 'completed') {
+  if (newlyCompleted) {
     await db.prepare(`
       UPDATE academy_enrollments
       SET status='completed', completed_at=?, updated_at=?
@@ -86,6 +88,7 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
 
   return {
     completed: true,
+    newlyCompleted,
     completedAt,
     finalScore,
     certificate,
