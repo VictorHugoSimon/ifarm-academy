@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.29
+## Concluído até v0.30
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder persistido em API/D1.
@@ -27,22 +27,25 @@
 - Eventos gratuitos, patrocinados e pagos modelados sem contornar checkout.
 - Smart Farm Experience identificável como fazenda-escola/laboratório vivo.
 - Inscrição de participante com capacidade e lista de espera.
-- Cancelamento com preparação para promoção da fila.
 - Gestão de presença, check-in, checkout, ausência e evidências.
-- Evidências preparadas para manual, código, QR, geolocalização, assinatura e documento.
-- Gate de CI específico para eventos e isolamento tenant/evento/empresa.
+- Cadastro de instrutor reutilizando identidade do iFarm.
+- Qualificações técnicas/profissionais com evidência e status de verificação.
+- Papéis de autor, instrutor, revisor e responsável técnico por curso.
+- Responsabilidade técnica condicionada a qualificação verificada e confirmação humana explícita.
+- Isolamento tenant-aware e auditoria da governança técnica.
+- Gates específicos de CI para eventos, ciclos acadêmicos e governança de instrutores.
 
 ## Próximas prioridades
 1. Lockfile íntegro e migração do CI de `npm install` para `npm ci` quando puder ser gerado em ambiente com rede e integridade verificável.
 2. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
 3. Integração definitiva com sessão/RBAC do iFarm Core, incluindo escopo confiável de `company_admin` por empresa.
-4. Gestão de instrutores, qualificações e responsabilidade técnica.
+4. Relatórios acadêmicos, empresariais, eventos e compliance essenciais do MVP.
 5. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
-6. Relatórios acadêmicos, empresariais e de eventos essenciais do MVP.
-7. Checkout e Mercado Pago, incluindo eventos pagos, após identity boundary real e validações comerciais/fiscais.
-8. Hardening operacional: observabilidade, backup/restore, rate limiting e alertas.
-9. Governança de validade/expiração pública de certificados regulatórios.
-10. Evolução Smart Farm Experience: QR/check-in, evidência prática, agenda de campo e integração com oferta comercial/cross-sell.
+6. Checkout e Mercado Pago, incluindo eventos pagos, após identity boundary real e validações comerciais/fiscais.
+7. Hardening operacional: observabilidade, backup/restore, rate limiting e alertas.
+8. Governança de validade/expiração pública de certificados regulatórios.
+9. Evolução Smart Farm Experience: QR/check-in, evidência prática, agenda de campo e integração com cross-sell.
+10. Marketplace avançado, repasses e comissionamento após definição comercial.
 
 ## Governança
 - `develop` é a linha de integração.
@@ -50,6 +53,7 @@
 - Não reutilizar secrets, bancos, tokens, buckets ou recursos de outros projetos.
 - O papel `company_admin` só deve ser liberado em homologação/produção quando o iFarm Core fornecer escopo confiável da empresa administrada.
 - Nenhuma periodicidade regulatória deve ser hardcoded.
+- Qualificação verificada não equivale a declaração automática de habilitação legal; responsabilidade técnica exige decisão humana registrada.
 - Iniciar novo ciclo de treinamento não revoga automaticamente certificado anterior; validade pública deve ser política explícita.
 - Evento pago não gera inscrição/entitlement sem checkout confirmado.
 - CNAE, regras fiscais e percentual de comissão do marketplace permanecem TBD.
