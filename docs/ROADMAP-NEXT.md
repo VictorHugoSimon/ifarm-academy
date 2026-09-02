@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.24
+## Concluído até v0.25
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder persistido em API/D1.
@@ -17,30 +17,26 @@
 - Editor e renderização segura de `content_json` por tipo de aula.
 - Storage de materiais com reserva, upload, entrega autenticada e remoção.
 - Binding `ACADEMY_STORAGE` opcional e isolado por ambiente.
-- Contrato de mídia desacoplado do provedor.
-- Endpoint autenticado de resolução de playback.
-- Player HTML5 de vídeo e áudio com retomada real de posição.
-- Progresso de mídia salvo periodicamente e ao pausar.
-- Conclusão de mídia registrada automaticamente ao término.
+- Contrato de mídia desacoplado do provedor e player com retomada real.
 - Snapshot acadêmico imutável no certificado.
-- Instrutor/responsável, carga horária, tipo e conclusão preservados na emissão.
-- Publicação exige metadados mínimos de certificação.
-- API pública de validação ampliada.
-- Página pública de validação sem login.
-- QR Code gerado pela própria aplicação, sem serviço externo.
+- Página pública de validação e QR Code local.
 - Aba Certificação conectada aos certificados reais do aluno.
+- Testes HTTP das Pages Functions para certificado público e listagem do aluno.
+- Fixture de integração D1-compatible cobrindo curso, matrícula, progresso e certificado.
+- Testes de isolamento cross-tenant no banco.
+- CI com concorrência controlada, timeout e gate separado de integração de banco.
 
 ## Próximas prioridades
-1. Testes de integração das Pages Functions com D1 isolado e fixtures reais.
-2. Lockfile íntegro e migração do CI de `npm install` para `npm ci`.
-3. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
-4. Integração definitiva com sessão/RBAC do iFarm Core.
-5. Painel empresarial com atribuição de cursos e trilhas obrigatórias.
-6. Eventos/Smart Farm Experience conectados a inscrições e presença.
-7. Gestão de instrutores e responsabilidade técnica.
-8. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
-9. Relatórios acadêmicos essenciais do MVP.
-10. Mercado Pago somente após identity boundary real, webhook assinado e validações comerciais/fiscais.
+1. Lockfile íntegro e migração do CI de `npm install` para `npm ci`.
+2. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
+3. Integração definitiva com sessão/RBAC do iFarm Core.
+4. Painel empresarial com atribuição de cursos e trilhas obrigatórias.
+5. Eventos/Smart Farm Experience conectados a inscrições e presença.
+6. Gestão de instrutores e responsabilidade técnica.
+7. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
+8. Relatórios acadêmicos essenciais do MVP.
+9. Checkout e Mercado Pago após identity boundary real e validações comerciais/fiscais.
+10. Hardening operacional: observabilidade, backup/restore, rate limiting e alertas.
 
 ## Governança
 - `develop` é a linha de integração.
