@@ -35,7 +35,7 @@ export function AcademyWorkspacePage() {
         ))}
       </nav>
 
-      {view === 'course' && <CourseBuilderPage />}
+      {view === 'course' && <CourseBuilderPage onBack={() => setView('course')} />}
       {view === 'quiz' && <QuizBuilderPage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
       {view === 'review' && <AssessmentReviewPage />}
