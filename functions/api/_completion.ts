@@ -74,11 +74,38 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
   const newlyCompleted = String(enrollment.status) !== 'completed'
   const completedAt = enrollment.completed_at ? String(enrollment.completed_at) : new Date().toISOString()
   if (newlyCompleted) {
-    await db.prepare(`
-      UPDATE academy_enrollments
-      SET status='completed', completed_at=?, updated_at=?
-      WHERE tenant_id=? AND course_id=? AND student_id=? AND status='active'
-    `).bind(completedAt, completedAt, input.tenantId, input.courseId, input.studentId).run()
+    await db.batch([
+      db.prepare(`
+        UPDATE academy_enrollments
+        SET status='completed', completed_at=?, updated_at=?
+        WHERE tenant_id=? AND course_id=? AND student_id=? AND status='active'
+      `).bind(completedAt, completedAt, input.tenantId, input.courseId, input.studentId),
+      db.prepare(`
+        UPDATE academy_course_assignments
+        SET
+          status='completed',
+          completed_at=?,
+          next_due_at=CASE
+            WHEN renewal_interval_days IS NOT NULL
+            THEN datetime(?, '+' || renewal_interval_days || ' days')
+            ELSE NULL
+          END,
+          updated_at=?
+        WHERE tenant_id=? AND course_id=? AND status IN ('assigned','in_progress')
+          AND member_id IN (
+            SELECT id FROM academy_company_members
+            WHERE tenant_id=? AND user_id=?
+          )
+      `).bind(
+        completedAt,
+        completedAt,
+        completedAt,
+        input.tenantId,
+        input.courseId,
+        input.tenantId,
+        input.studentId,
+      ),
+    ])
   }
 
   const certificate = await tryIssueCertificate(db, {
