@@ -1,25 +1,21 @@
 import { auditStatement } from './_audit'
 import { requireTrustedContext } from './_auth'
+import { decideEventRegistration } from './_eventRules'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
-async function nextRegistrationStatus(db: any, tenantId: string, event: any): Promise<'registered' | 'waitlisted'> {
-  if (event.capacity == null) return 'registered'
-  const occupancy = await db.prepare(`
+async function occupancy(db: any, tenantId: string, eventId: string): Promise<number> {
+  const row = await db.prepare(`
     SELECT COUNT(*) AS total FROM academy_event_registrations
     WHERE tenant_id=? AND event_id=? AND status IN ('registered','attended')
-  `).bind(tenantId, event.id).first()
-  return Number(occupancy?.total ?? 0) >= Number(event.capacity) ? 'waitlisted' : 'registered'
+  `).bind(tenantId, eventId).first()
+  return Number(row?.total ?? 0)
 }
 
 async function promoteWaitlist(db: any, tenantId: string, eventId: string, now: string) {
   const event = await db.prepare('SELECT capacity FROM academy_events WHERE tenant_id=? AND id=? LIMIT 1')
     .bind(tenantId, eventId).first()
   if (!event || event.capacity == null) return null
-  const occupied = await db.prepare(`
-    SELECT COUNT(*) AS total FROM academy_event_registrations
-    WHERE tenant_id=? AND event_id=? AND status IN ('registered','attended')
-  `).bind(tenantId, eventId).first()
-  if (Number(occupied?.total ?? 0) >= Number(event.capacity)) return null
+  if (await occupancy(db, tenantId, eventId) >= Number(event.capacity)) return null
 
   const waiting = await db.prepare(`
     SELECT * FROM academy_event_registrations
@@ -87,16 +83,6 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   const event = await db.prepare('SELECT * FROM academy_events WHERE tenant_id=? AND id=? LIMIT 1')
     .bind(auth.tenantId, eventId).first()
   if (!event) return json({ error: 'Evento não encontrado neste tenant' }, 404)
-  if (String(event.status) !== 'published') return json({ error: 'Evento não está aberto para inscrições' }, 409)
-  if (String(event.access_model) === 'paid') {
-    return json({ error: 'Evento pago exige checkout antes da inscrição', checkoutRequired: true, eventId }, 409)
-  }
-
-  const now = new Date()
-  if (new Date(String(event.ends_at)).getTime() <= now.getTime()) return json({ error: 'Evento já encerrado' }, 409)
-  if (event.registration_deadline && new Date(String(event.registration_deadline)).getTime() < now.getTime()) {
-    return json({ error: 'Prazo de inscrição encerrado' }, 409)
-  }
 
   if (companyId) {
     const company = await db.prepare('SELECT id FROM academy_companies WHERE tenant_id=? AND id=? LIMIT 1')
@@ -112,8 +98,24 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     return json({ data: { id: existing.id, eventId, status: existing.status }, idempotent: true })
   }
 
-  const status = await nextRegistrationStatus(db, auth.tenantId, event)
-  const timestamp = now.toISOString()
+  const occupied = await occupancy(db, auth.tenantId, eventId)
+  const decision = decideEventRegistration({
+    status: String(event.status),
+    accessModel: String(event.access_model),
+    endsAt: String(event.ends_at),
+    registrationDeadline: event.registration_deadline == null ? null : String(event.registration_deadline),
+    capacity: event.capacity == null ? null : Number(event.capacity),
+    occupied,
+  })
+  if (!decision.allowed) {
+    if (decision.reason === 'checkout_required') return json({ error: 'Evento pago exige checkout antes da inscrição', checkoutRequired: true, eventId }, 409)
+    if (decision.reason === 'registration_closed') return json({ error: 'Prazo de inscrição encerrado' }, 409)
+    if (decision.reason === 'event_ended') return json({ error: 'Evento já encerrado' }, 409)
+    return json({ error: 'Evento não está aberto para inscrições' }, 409)
+  }
+
+  const status = decision.status
+  const timestamp = new Date().toISOString()
   const id = existing ? String(existing.id) : crypto.randomUUID()
   const action = existing ? 'event_registration.reactivated' : 'event_registration.created'
 
@@ -139,7 +141,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     ),
     auditStatement(db, auth, {
       action, resourceType: 'event_registration', resourceId: id,
-      metadata: { eventId, eventTitle: event.title, status, companyId, marketingConsent },
+      metadata: { eventId, eventTitle: event.title, status, companyId, marketingConsent, occupiedBefore: occupied },
     }),
   ])
 
