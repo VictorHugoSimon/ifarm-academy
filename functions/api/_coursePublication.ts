@@ -1,3 +1,6 @@
+export type CourseStatus = 'draft' | 'review' | 'published' | 'archived'
+export type CoursePublicationAction = 'submit_review' | 'publish' | 'return_draft' | 'archive'
+
 export interface CourseReadiness {
   exists: boolean
   ready: boolean
@@ -7,6 +10,41 @@ export interface CourseReadiness {
   lessonCount: number
   requiredLessonCount: number
   quizId?: string | null
+}
+
+export interface CourseTransitionResult {
+  ok: boolean
+  nextStatus?: CourseStatus
+  error?: string
+  publisherRequired?: boolean
+  readinessRequired?: boolean
+}
+
+export function resolveCourseTransition(
+  currentStatus: CourseStatus,
+  action: CoursePublicationAction,
+): CourseTransitionResult {
+  if (action === 'submit_review') {
+    if (currentStatus !== 'draft') return { ok: false, error: 'Somente curso em draft pode ser enviado para revisão' }
+    return { ok: true, nextStatus: 'review' }
+  }
+
+  if (action === 'publish') {
+    if (currentStatus !== 'review') return { ok: false, error: 'Curso precisa estar em revisão antes de publicar' }
+    return { ok: true, nextStatus: 'published', publisherRequired: true, readinessRequired: true }
+  }
+
+  if (action === 'return_draft') {
+    if (currentStatus !== 'review') return { ok: false, error: 'Somente curso em revisão pode voltar para draft' }
+    return { ok: true, nextStatus: 'draft', publisherRequired: true }
+  }
+
+  if (action === 'archive') {
+    if (currentStatus !== 'published') return { ok: false, error: 'Somente curso publicado pode ser arquivado' }
+    return { ok: true, nextStatus: 'archived', publisherRequired: true }
+  }
+
+  return { ok: false, error: 'Ação de publicação inválida' }
 }
 
 export async function evaluateCourseReadiness(db: any, tenantId: string, courseId: string): Promise<CourseReadiness> {
