@@ -53,6 +53,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   const auth = requireAdminContext(env, request, editorRoles)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
+  if (!storageConfigured(env)) return json({ error: 'ACADEMY_STORAGE binding not configured' }, 503)
 
   let body: Record<string, unknown>
   try { body = await bodyJson(request) } catch { return json({ error: 'JSON inválido' }, 400) }
@@ -114,7 +115,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
       provider: 'academy_storage',
       status: 'pending',
       uploadUrl: `/api/materials/${encodeURIComponent(id)}/content`,
-      storageConfigured: storageConfigured(env),
+      storageConfigured: true,
     },
   }, 201)
 }
