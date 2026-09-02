@@ -1,5 +1,7 @@
 PRAGMA foreign_keys = ON;
 
+ALTER TABLE academy_quiz_attempts ADD COLUMN policy_version INTEGER;
+
 CREATE TABLE IF NOT EXISTS academy_quiz_attempt_reviews (
   id TEXT PRIMARY KEY,
   attempt_id TEXT NOT NULL,
