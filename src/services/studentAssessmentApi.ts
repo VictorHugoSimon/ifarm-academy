@@ -31,6 +31,16 @@ export interface ServerAttempt {
   policyVersion?: number | null
 }
 
+export interface ServerAttemptSubmission {
+  id: string
+  status: ServerAttempt['status']
+  finalPercentage?: number | null
+  minimumScore: number
+  policyVersion: number
+  enrollmentCompletion?: unknown
+  certificate?: unknown
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -83,16 +93,8 @@ export async function saveServerAttemptAnswers(attemptId: string, answers: QuizA
   })
 }
 
-export async function submitServerAttempt(attemptId: string, answers: QuizAnswer[]) {
-  const result = await request<{ data: {
-    id: string
-    status: ServerAttempt['status']
-    finalPercentage?: number | null
-    minimumScore: number
-    policyVersion: number
-    enrollmentCompletion?: unknown
-    certificate?: unknown
-  } }>(`/api/attempts/${encodeURIComponent(attemptId)}/submit`, {
+export async function submitServerAttempt(attemptId: string, answers: QuizAnswer[]): Promise<ServerAttemptSubmission> {
+  const result = await request<{ data: ServerAttemptSubmission }>(`/api/attempts/${encodeURIComponent(attemptId)}/submit`, {
     method: 'POST',
     body: JSON.stringify({ answers }),
   })
