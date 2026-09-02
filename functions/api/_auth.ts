@@ -1,10 +1,13 @@
 import { json, type Env } from './_shared'
 
-export interface AdminContext {
+export interface TrustedContext {
   userId: string
-  tenantId?: string
+  tenantId: string
   roles: string[]
+  displayName?: string
 }
+
+export type AdminContext = TrustedContext
 
 const normalizeRoles = (value: string | null): string[] =>
   Array.from(new Set(
@@ -23,15 +26,42 @@ function secureEqual(left: string, right: string): boolean {
   return diff === 0
 }
 
+export function requireTrustedContext(
+  env: Env,
+  request: Request,
+): TrustedContext | Response {
+  const configuredSecret = env.ACADEMY_ADMIN_PROXY_SECRET
+  if (!configuredSecret) return json({ error: 'iFarm identity boundary not configured' }, 503)
+
+  const providedSecret = request.headers.get('x-ifarm-proxy-secret') ?? ''
+  if (!providedSecret || !secureEqual(providedSecret, configuredSecret)) {
+    return json({ error: 'iFarm proxy authentication failed' }, 401)
+  }
+
+  const userId = request.headers.get('x-ifarm-user-id')?.trim() ?? ''
+  if (!userId) return json({ error: 'Authenticated iFarm user is required' }, 401)
+
+  const tenantId = request.headers.get('x-ifarm-tenant-id')?.trim() ?? ''
+  if (!tenantId) return json({ error: 'Authenticated iFarm tenant is required' }, 401)
+
+  const roles = normalizeRoles(request.headers.get('x-ifarm-roles'))
+  const displayName = request.headers.get('x-ifarm-user-name')?.trim() || undefined
+
+  return {
+    userId,
+    tenantId,
+    roles,
+    ...(displayName ? { displayName } : {}),
+  }
+}
+
 export function requireAdminContext(
   env: Env,
   request: Request,
   allowedRoles: string[],
 ): AdminContext | Response {
   const configuredSecret = env.ACADEMY_ADMIN_PROXY_SECRET
-  if (!configuredSecret) {
-    return json({ error: 'Admin identity boundary not configured' }, 503)
-  }
+  if (!configuredSecret) return json({ error: 'Admin identity boundary not configured' }, 503)
 
   const providedSecret = request.headers.get('x-ifarm-proxy-secret') ?? ''
   if (!providedSecret || !secureEqual(providedSecret, configuredSecret)) {
@@ -47,6 +77,14 @@ export function requireAdminContext(
     return json({ error: 'Insufficient Academy role' }, 403)
   }
 
-  const tenantId = request.headers.get('x-ifarm-tenant-id')?.trim() || undefined
-  return { userId, tenantId, roles }
+  const tenantId = request.headers.get('x-ifarm-tenant-id')?.trim() ?? ''
+  if (!tenantId) return json({ error: 'Authenticated iFarm tenant is required' }, 401)
+
+  const displayName = request.headers.get('x-ifarm-user-name')?.trim() || undefined
+  return {
+    userId,
+    tenantId,
+    roles,
+    ...(displayName ? { displayName } : {}),
+  }
 }
