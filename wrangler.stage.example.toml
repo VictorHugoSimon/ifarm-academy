@@ -10,5 +10,12 @@ compatibility_date = "2026-09-01"
 # database_name = "ifarm-academy-stage"
 # database_id = "<D1_DATABASE_ID_EXCLUSIVO_STAGE>"
 
+# Storage exclusivo da Academy. O nome do bucket é exemplo e só deve ser
+# ativado após provisionamento de um recurso exclusivo deste projeto.
+#
+# [[r2_buckets]]
+# binding = "ACADEMY_STORAGE"
+# bucket_name = "ifarm-academy-stage-materials"
+
 # ACADEMY_ADMIN_PROXY_SECRET deve ser cadastrado como secret no ambiente,
 # nunca neste arquivo e nunca com prefixo VITE_.
