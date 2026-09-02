@@ -46,6 +46,9 @@ jobs:
       - name: Enterprise integration fixtures
         run: python3 scripts/integration_enterprise_contract.py
 
+      - name: Enterprise paths and renewals fixtures
+        run: python3 scripts/integration_enterprise_paths_contract.py
+
       - name: Build
         run: npm run build
 
