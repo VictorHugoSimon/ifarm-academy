@@ -61,6 +61,9 @@ jobs:
       - name: Reporting integration fixtures
         run: python3 scripts/integration_reports_contract.py
 
+      - name: Certificate validity fixtures
+        run: python3 scripts/integration_certificate_validity_contract.py
+
       - name: Build
         run: npm run build
 
