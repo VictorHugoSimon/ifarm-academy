@@ -1,4 +1,7 @@
-export interface Env { ACADEMY_DB?: any }
+export interface Env {
+  ACADEMY_DB?: any
+  ACADEMY_ADMIN_PROXY_SECRET?: string
+}
 
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, { status, headers: { 'cache-control': 'no-store' } })
