@@ -69,6 +69,11 @@ export function StudentLessonContent({
   }
 
   if (['pdf', 'presentation', 'file'].includes(lesson.contentType)) {
+    const academyMaterialUrl = content.provider === 'academy_storage' && content.providerRef
+      ? `/api/materials/${encodeURIComponent(content.providerRef)}`
+      : undefined
+    const materialUrl = academyMaterialUrl || content.externalUrl
+
     return (
       <article className="textLesson">
         <h2>{lesson.title}</h2>
@@ -78,7 +83,7 @@ export function StudentLessonContent({
             Material armazenado na Academy · {content.provider || 'storage'} · referência {content.providerRef}
           </p>
         )}
-        <ExternalResource url={content.externalUrl} label="Abrir material autorizado" />
+        <ExternalResource url={materialUrl} label="Abrir material autorizado" />
       </article>
     )
   }
