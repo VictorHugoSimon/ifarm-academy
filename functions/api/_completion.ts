@@ -95,6 +95,11 @@ export async function tryCompleteEnrollment(db: any, input: CompletionInput) {
         SET status='completed', completed_at=?, updated_at=?
         WHERE tenant_id=? AND course_id=? AND student_id=? AND active_cycle_id=?
       `).bind(completedAt, completedAt, input.tenantId, input.courseId, input.studentId, cycleId),
+      db.prepare(`
+        UPDATE academy_course_assignments
+        SET status='completed', completed_at=?, updated_at=?
+        WHERE tenant_id=? AND learning_cycle_id=? AND status IN ('assigned','in_progress')
+      `).bind(completedAt, completedAt, input.tenantId, cycleId),
     ])
   }
 
