@@ -1,15 +1,15 @@
-import { requireAdminContext } from './_auth'
+import { requireCompanyScope, requireEnterpriseContext } from './_enterpriseAuth'
 import { dbOr503, json, type Env } from './_shared'
 
-const enterpriseRoles = ['academy_admin', 'ifarm_admin', 'company_admin', 'academy_company_admin']
-
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
-  const auth = requireAdminContext(env, request, enterpriseRoles)
+  const auth = requireEnterpriseContext(env, request)
   if (auth instanceof Response) return auth
   const db = dbOr503(env); if (db instanceof Response) return db
 
   const companyId = new URL(request.url).searchParams.get('companyId')?.trim() ?? ''
   if (!companyId) return json({ error: 'companyId é obrigatório' }, 400)
+  const scopeDenied = requireCompanyScope(auth, companyId)
+  if (scopeDenied) return scopeDenied
 
   const company = await db.prepare(`
     SELECT id, name, status FROM academy_companies
@@ -26,10 +26,10 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   const assignmentStats = await db.prepare(`
     SELECT
       COUNT(*) AS total,
-      SUM(CASE WHEN a.required=1 THEN 1 ELSE 0 END) AS required_total,
+      SUM(CASE WHEN a.required=1 AND a.status!='cancelled' THEN 1 ELSE 0 END) AS required_total,
       SUM(CASE WHEN a.status='cancelled' THEN 1 ELSE 0 END) AS cancelled_total,
       SUM(CASE WHEN a.status!='cancelled' AND e.status='completed' THEN 1 ELSE 0 END) AS completed_total,
-      SUM(CASE WHEN a.status!='cancelled' AND e.status!='completed' AND a.due_at IS NOT NULL AND datetime(a.due_at) < datetime('now') THEN 1 ELSE 0 END) AS overdue_total
+      SUM(CASE WHEN a.status!='cancelled' AND COALESCE(e.status,'')!='completed' AND a.due_at IS NOT NULL AND datetime(a.due_at) < datetime('now') THEN 1 ELSE 0 END) AS overdue_total
     FROM academy_course_assignments a
     JOIN academy_company_members m
       ON m.tenant_id=a.tenant_id AND m.id=a.member_id AND m.company_id=a.company_id
