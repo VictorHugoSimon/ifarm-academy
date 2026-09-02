@@ -4,13 +4,17 @@ import { QuizBuilderPage } from './QuizBuilderPage'
 import { StudentAssessmentPlayerPage } from './StudentAssessmentPlayerPage'
 import { AssessmentReviewPage } from './AssessmentReviewPage'
 import { CertificateEligibilityPage } from './CertificateEligibilityPage'
+import { CoursePublicationPage } from './CoursePublicationPage'
+import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import '../styles/assessment-cert.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'student' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'student' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
   ['quiz', 'Quiz Builder'],
+  ['publication', 'Publicação'],
+  ['catalog', 'Catálogo e matrículas'],
   ['student', 'Experiência do aluno'],
   ['review', 'Revisão manual'],
   ['certificate', 'Certificação'],
@@ -25,7 +29,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>iFarm Academy · Núcleo acadêmico</small>
           <h1>Operação integrada do curso</h1>
-          <p className="workspaceIntro">Criação do conteúdo, avaliação, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, governança de publicação, matrícula, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -37,6 +41,8 @@ export function AcademyWorkspacePage() {
 
       {view === 'course' && <CourseBuilderPage onBack={() => setView('course')} />}
       {view === 'quiz' && <QuizBuilderPage />}
+      {view === 'publication' && <CoursePublicationPage />}
+      {view === 'catalog' && <EnrollmentCatalogPage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
       {view === 'review' && <AssessmentReviewPage />}
       {view === 'certificate' && <CertificateEligibilityPage />}
