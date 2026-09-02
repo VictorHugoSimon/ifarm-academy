@@ -43,6 +43,9 @@ jobs:
       - name: Database integration fixtures
         run: python3 scripts/integration_db_contract.py
 
+      - name: Enterprise integration fixtures
+        run: python3 scripts/integration_enterprise_contract.py
+
       - name: Build
         run: npm run build
 
