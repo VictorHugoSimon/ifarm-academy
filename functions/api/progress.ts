@@ -14,21 +14,29 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   if (!courseId) return json({ error: 'courseId é obrigatório' }, 400)
 
   const enrollment = await db.prepare(`
-    SELECT id, status FROM academy_enrollments
-    WHERE tenant_id=? AND student_id=? AND course_id=?
+    SELECT e.*, lc.status AS cycle_status, lc.cycle_number
+    FROM academy_enrollments e
+    LEFT JOIN academy_learning_cycles lc ON lc.tenant_id=e.tenant_id AND lc.id=e.active_cycle_id
+    WHERE e.tenant_id=? AND e.student_id=? AND e.course_id=?
     LIMIT 1
   `).bind(context.tenantId, context.userId, courseId).first()
   if (!enrollment || String(enrollment.status) === 'cancelled') {
     return json({ error: 'Matrícula ativa é obrigatória para consultar o progresso' }, 403)
   }
+  const cycleId = String(enrollment.active_cycle_id ?? '').trim()
+  if (!cycleId) return json({ error: 'Ciclo acadêmico atual não encontrado' }, 409)
 
   const result = await db.prepare(`
     SELECT * FROM academy_progress
-    WHERE tenant_id=? AND student_id=? AND course_id=?
+    WHERE tenant_id=? AND student_id=? AND course_id=? AND cycle_id=?
     ORDER BY updated_at DESC
-  `).bind(context.tenantId, context.userId, courseId).all()
+  `).bind(context.tenantId, context.userId, courseId, cycleId).all()
 
-  return json({ data: result.results })
+  return json({ data: result.results, cycle: {
+    id: cycleId,
+    number: enrollment.cycle_number == null ? null : Number(enrollment.cycle_number),
+    status: enrollment.cycle_status ?? null,
+  } })
 }
 
 export const onRequestPut = async ({ env, request }: { env: Env; request: Request }) => {
@@ -52,12 +60,18 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
   }
 
   const enrollment = await db.prepare(`
-    SELECT * FROM academy_enrollments
-    WHERE tenant_id=? AND student_id=? AND course_id=?
+    SELECT e.*, lc.status AS cycle_status, lc.cycle_number
+    FROM academy_enrollments e
+    LEFT JOIN academy_learning_cycles lc ON lc.tenant_id=e.tenant_id AND lc.id=e.active_cycle_id
+    WHERE e.tenant_id=? AND e.student_id=? AND e.course_id=?
     LIMIT 1
   `).bind(context.tenantId, context.userId, courseId).first()
   if (!enrollment) return json({ error: 'Matrícula não encontrada' }, 403)
   if (String(enrollment.status) === 'cancelled') return json({ error: 'Matrícula cancelada não permite registrar progresso' }, 403)
+  const cycleId = String(enrollment.active_cycle_id ?? '').trim()
+  if (!cycleId || String(enrollment.cycle_status ?? '') !== 'active') {
+    return json({ error: 'Ciclo acadêmico ativo é obrigatório para registrar progresso' }, 409)
+  }
 
   const lesson = await db.prepare(`
     SELECT id, content_type
@@ -70,29 +84,27 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
   const current = await db.prepare(`
     SELECT progress_percent, last_position_seconds, completed_at
     FROM academy_progress
-    WHERE tenant_id=? AND student_id=? AND course_id=? AND lesson_id=?
+    WHERE tenant_id=? AND student_id=? AND course_id=? AND cycle_id=? AND lesson_id=?
     LIMIT 1
-  `).bind(context.tenantId, context.userId, courseId, lessonId).first()
+  `).bind(context.tenantId, context.userId, courseId, cycleId, lessonId).first()
 
   const progressPercent = Math.max(Number(current?.progress_percent ?? 0), Math.round(requestedProgress))
   const lastPositionSeconds = Math.round(requestedPosition)
   const now = new Date().toISOString()
-  const completedAt = progressPercent >= 100
-    ? String(current?.completed_at ?? now)
-    : null
+  const completedAt = progressPercent >= 100 ? String(current?.completed_at ?? now) : null
 
   await db.prepare(`
     INSERT INTO academy_progress (
-      student_id, course_id, lesson_id, progress_percent,
+      cycle_id, student_id, course_id, lesson_id, progress_percent,
       completed_at, updated_at, tenant_id, last_position_seconds
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(student_id, course_id, lesson_id) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(cycle_id, lesson_id) DO UPDATE SET
       progress_percent=excluded.progress_percent,
       completed_at=excluded.completed_at,
       updated_at=excluded.updated_at,
-      tenant_id=excluded.tenant_id,
       last_position_seconds=excluded.last_position_seconds
   `).bind(
+    cycleId,
     context.userId,
     courseId,
     lessonId,
@@ -108,37 +120,38 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     studentId: context.userId,
     studentName: context.displayName ?? enrollment.student_name_snapshot ?? null,
     courseId,
+    cycleId,
   })
 
-  if (completion.completed && String(enrollment.status) !== 'completed') {
+  if (completion.newlyCompleted) {
     await auditStatement(db, context, {
-      action: 'enrollment.completed',
-      resourceType: 'enrollment',
-      resourceId: String(enrollment.id),
-      metadata: { courseId, completedAt: completion.completedAt },
+      action: 'learning_cycle.completed',
+      resourceType: 'learning_cycle',
+      resourceId: cycleId,
+      metadata: { enrollmentId: enrollment.id, courseId, cycleNumber: enrollment.cycle_number, completedAt: completion.completedAt },
     }).run()
   }
 
-  if (completion.completed && completion.certificate?.issued && completion.certificate.certificate) {
+  if (completion.certificate?.issued && completion.certificate.certificate) {
     await auditStatement(db, context, {
       action: 'certificate.auto_issued',
       resourceType: 'certificate',
       resourceId: String(completion.certificate.certificate.id ?? ''),
-      metadata: { source: 'lesson_progress', courseId },
+      metadata: { source: 'lesson_progress', courseId, cycleId },
     }).run()
   }
 
-  return json({
-    data: {
-      tenantId: context.tenantId,
-      studentId: context.userId,
-      courseId,
-      lessonId,
-      progressPercent,
-      lastPositionSeconds,
-      completedAt,
-      updatedAt: now,
-      enrollmentCompletion: completion,
-    },
-  })
+  return json({ data: {
+    tenantId: context.tenantId,
+    studentId: context.userId,
+    courseId,
+    cycleId,
+    cycleNumber: enrollment.cycle_number == null ? null : Number(enrollment.cycle_number),
+    lessonId,
+    progressPercent,
+    lastPositionSeconds,
+    completedAt,
+    updatedAt: now,
+    enrollmentCompletion: completion,
+  } })
 }
