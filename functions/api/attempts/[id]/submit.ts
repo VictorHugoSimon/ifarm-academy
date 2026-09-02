@@ -20,9 +20,10 @@ export const onRequestPost = async ({ env, request, params }: { env: Env; reques
   const minimumScore = Number(policy.minimum_score ?? 0)
   const status = resolveAutomaticStatus(result, minimumScore)
   const submittedAt = new Date().toISOString()
+  const policyVersion = Number(policy.version ?? 1)
 
-  await db.prepare(`UPDATE academy_quiz_attempts SET status=?, answers_json=?, automatic_result_json=?, final_percentage=?, submitted_at=? WHERE id=?`)
-    .bind(status, JSON.stringify(answers), JSON.stringify(result), result.percentage, submittedAt, id).run()
+  await db.prepare(`UPDATE academy_quiz_attempts SET status=?, answers_json=?, automatic_result_json=?, final_percentage=?, policy_version=?, submitted_at=? WHERE id=?`)
+    .bind(status, JSON.stringify(answers), JSON.stringify(result), result.percentage, policyVersion, submittedAt, id).run()
 
-  return json({ data: { id, status, minimumScore, automaticResult: result, finalPercentage: result.percentage, submittedAt } })
+  return json({ data: { id, status, minimumScore, policyVersion, automaticResult: result, finalPercentage: result.percentage, submittedAt } })
 }
