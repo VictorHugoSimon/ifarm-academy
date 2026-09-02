@@ -1,27 +1,31 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.19
-- Identidade administrativa fail-closed preparada para o iFarm Core.
-- Correção manual auditável e política de quiz versionada.
-- Certificação automática após elegibilidade.
-- Isolamento inicial por tenant.
+## Concluído até v0.20
+- Identidade fail-closed preparada para integração com o iFarm Core.
+- Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder persistido em API/D1.
-- Quiz Builder conectado à política server-side.
-- Vínculo explícito curso → avaliação.
-- Workflow de publicação `draft → review → published → archived`.
-- Catálogo tenant-aware de cursos publicados.
-- Matrícula server-side idempotente com cancelamento/reativação e auditoria.
+- Quiz Builder server-side com política versionada.
+- Correção manual auditável.
+- Workflow `draft → review → published → archived`.
+- Catálogo tenant-aware e matrícula server-side.
+- Student Player consumindo curso matriculado do D1.
+- Progresso server-side por aula e posição de retomada.
+- Avaliação estudantil server-side sem exposição do gabarito.
+- Conclusão automática da matrícula.
+- Certificação automática após requisitos reais de conclusão.
+- Validação sequencial das migrations no CI.
+- Triggers de integridade multi-tenant no banco.
 
 ## Próximas prioridades
-1. Área do aluno conectada à matrícula e ao progresso server-side por aula.
-2. Student Player consumindo módulos/aulas do curso publicado no D1.
-3. Conclusão automática da matrícula quando os requisitos forem atendidos.
-4. Certificado associado à matrícula concluída e página pública de validação completa.
-5. Testes de integração das Pages Functions com D1 isolado.
-6. Lockfile íntegro e migração do CI para `npm ci`.
-7. Provisionamento exclusivo de Cloudflare Pages + D1 para STAGE.
-8. Integração definitiva com sessão/RBAC do iFarm Core.
-9. Streaming de vídeo após definição/provisionamento do provedor.
+1. Editor de conteúdo da aula para texto, links, PDFs, apresentações e materiais.
+2. Persistência e renderização segura de `content_json` por tipo de conteúdo.
+3. Upload de materiais com storage exclusivo da Academy.
+4. Preparação do streaming de vídeo e retomada real por posição.
+5. Página pública completa de validação do certificado + QR Code.
+6. Testes de integração das Pages Functions com D1 isolado e fixtures reais.
+7. Lockfile íntegro e migração do CI de `npm install` para `npm ci`.
+8. Provisionamento exclusivo de Cloudflare Pages + D1 para STAGE.
+9. Integração definitiva com sessão/RBAC do iFarm Core.
 10. Mercado Pago somente após identity boundary real, webhook assinado e validações comerciais/fiscais.
 
 ## Governança
