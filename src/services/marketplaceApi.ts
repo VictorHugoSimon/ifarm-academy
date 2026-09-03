@@ -7,6 +7,13 @@ export interface MarketplaceCourseOption {
   instructors?: string | null
 }
 
+export interface MarketplacePermissions {
+  canSubmit: boolean
+  canReview: boolean
+  canConfigureCommission: boolean
+  canPublish: boolean
+}
+
 export interface CommissionRuleSummary {
   id: string
   version: number
@@ -54,6 +61,10 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   })
   if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
   return response.json() as Promise<T>
+}
+
+export async function loadMarketplacePermissions(): Promise<MarketplacePermissions> {
+  return (await request<{ data: MarketplacePermissions }>('/api/marketplace-permissions')).data
 }
 
 export async function loadMarketplaceEligibleCourses(): Promise<MarketplaceCourseOption[]> {
