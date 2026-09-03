@@ -10,12 +10,23 @@ function resultText(data: Record<string, unknown>) {
   return 'Registro concluído.'
 }
 
+function textField(data: Record<string, unknown> | null, key: string): string {
+  const value = data?.[key]
+  return value == null ? '' : String(value)
+}
+
 export function SmartFarmCheckinPage() {
   const initialToken = useMemo(() => new URLSearchParams(window.location.search).get('token')?.trim() ?? '', [])
   const [token, setToken] = useState(initialToken)
   const [status, setStatus] = useState<'idle'|'submitting'|'success'|'error'>('idle')
   const [message, setMessage] = useState(initialToken ? 'Confira o QR e confirme para registrar a ação.' : 'Informe o token exibido pela organização.')
   const [result, setResult] = useState<Record<string, unknown> | null>(null)
+
+  const eventTitle = textField(result, 'eventTitle')
+  const agendaTitle = textField(result, 'agendaTitle')
+  const checkinAt = textField(result, 'checkinAt')
+  const checkoutAt = textField(result, 'checkoutAt')
+  const evidenceStatus = textField(result, 'evidenceStatus')
 
   async function confirm() {
     if (!token.trim()) { setStatus('error'); setMessage('Token obrigatório.'); return }
@@ -48,11 +59,11 @@ export function SmartFarmCheckinPage() {
         </div>
 
         {result && <div className="smartFarmCheckinResult">
-          {result.eventTitle && <div><span>Evento</span><strong>{String(result.eventTitle)}</strong></div>}
-          {result.agendaTitle && <div><span>Atividade</span><strong>{String(result.agendaTitle)}</strong></div>}
-          {result.checkinAt && <div><span>Entrada</span><strong>{new Date(String(result.checkinAt)).toLocaleString('pt-BR')}</strong></div>}
-          {result.checkoutAt && <div><span>Saída</span><strong>{new Date(String(result.checkoutAt)).toLocaleString('pt-BR')}</strong></div>}
-          {result.evidenceStatus && <div><span>Evidência</span><strong>{String(result.evidenceStatus)}</strong></div>}
+          {eventTitle && <div><span>Evento</span><strong>{eventTitle}</strong></div>}
+          {agendaTitle && <div><span>Atividade</span><strong>{agendaTitle}</strong></div>}
+          {checkinAt && <div><span>Entrada</span><strong>{new Date(checkinAt).toLocaleString('pt-BR')}</strong></div>}
+          {checkoutAt && <div><span>Saída</span><strong>{new Date(checkoutAt).toLocaleString('pt-BR')}</strong></div>}
+          {evidenceStatus && <div><span>Evidência</span><strong>{evidenceStatus}</strong></div>}
         </div>}
 
         <div className="smartFarmPrivacyNotice">O token é validado no servidor e comparado pelo hash. A Academy não usa a leitura do QR para criar lead comercial. Interesse em produtos ou serviços exige consentimento separado.</div>
