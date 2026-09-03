@@ -2,6 +2,13 @@ export interface Env {
   ACADEMY_DB?: any
   ACADEMY_STORAGE?: any
   ACADEMY_ADMIN_PROXY_SECRET?: string
+  ACADEMY_ENVIRONMENT?: string
+  ACADEMY_RELEASE?: string
+  ACADEMY_STORAGE_REQUIRED?: string
+  ACADEMY_RATE_LIMIT_ENABLED?: string
+  ACADEMY_RATE_LIMIT_PUBLIC_PER_MINUTE?: string
+  ACADEMY_RATE_LIMIT_AUTH_PER_MINUTE?: string
+  ACADEMY_RATE_LIMIT_WRITE_PER_MINUTE?: string
 }
 
 export function json(data: unknown, status = 200): Response {
