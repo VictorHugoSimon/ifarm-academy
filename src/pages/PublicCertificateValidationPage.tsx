@@ -30,9 +30,9 @@ function certificateNotice(certificate: CertificateRecord) {
     return `A classificação como treinamento regulamentar não substitui a verificação dos requisitos específicos da norma aplicável, incluindo modalidade, carga horária, prática, qualificação dos responsáveis e evidências exigidas. ${validity}`
   }
   if (certificate.certificateType === 'free_course') {
-    return 'Este documento comprova a conclusão de curso livre na iFarm Academy e não representa, por si só, habilitação profissional ou reconhecimento regulatório externo.'
+    return 'Este documento comprova a conclusão de curso livre e não representa, por si só, habilitação profissional ou reconhecimento regulatório externo.'
   }
-  return 'Este documento comprova a conclusão registrada na iFarm Academy conforme os metadados e a política de validade preservados no momento da emissão.'
+  return 'Este documento comprova a conclusão registrada conforme os metadados e a política de validade preservados no momento da emissão.'
 }
 
 export function PublicCertificateValidationPage() {
@@ -94,11 +94,17 @@ export function PublicCertificateValidationPage() {
   }
 
   const effectiveStatus = certificate?.effectiveStatus ?? (valid ? 'valid' : 'revoked')
+  const brand = certificate?.brand ?? {
+    brandName: 'iFarm', academyName: 'iFarm Academy', primaryColor: '#004E3B',
+    secondaryColor: '#087A51', accentColor: '#00825B', logoRef: null, certificateHeading: null,
+  }
 
   return (
     <main className="publicCertificatePage">
       <header className="publicCertificateHeader">
-        <div className="publicBrand"><strong>iFarm</strong><span>Academy</span></div>
+        <div className="publicBrand">
+          {brand.logoRef ? <img src={brand.logoRef} alt={`Logo ${brand.brandName}`} /> : <><strong>{brand.brandName}</strong><span>Academy</span></>}
+        </div>
         <div>
           <small>Validação pública</small>
           <h1>Verificar certificado</h1>
@@ -120,21 +126,21 @@ export function PublicCertificateValidationPage() {
       </section>
 
       {certificate && (
-        <article className={`certificateDocument ${effectiveStatus}`}>
+        <article className={`certificateDocument ${effectiveStatus}`} style={{ borderTopColor: brand.primaryColor }}>
           <div className="certificateDocumentTop">
             <div>
-              <small>iFarm Academy</small>
-              <h2>Certificado de Conclusão</h2>
+              <small style={{ color: brand.secondaryColor }}>{brand.academyName}</small>
+              <h2 style={{ color: brand.primaryColor }}>{brand.certificateHeading || 'Certificado de Conclusão'}</h2>
               <p>{typeLabels[certificate.certificateType]}</p>
             </div>
-            <span className="certificateStatus">{certificateStatusLabel(effectiveStatus).toUpperCase()}</span>
+            <span className="certificateStatus" style={{ borderColor: brand.accentColor, color: brand.primaryColor }}>{certificateStatusLabel(effectiveStatus).toUpperCase()}</span>
           </div>
 
           <div className="certificateStatement">
             <span>Certificamos que</span>
             <strong>{certificate.studentName}</strong>
             <span>concluiu o curso</span>
-            <h3>{certificate.courseTitle}</h3>
+            <h3 style={{ color: brand.primaryColor }}>{certificate.courseTitle}</h3>
           </div>
 
           <div className="certificateFacts">
@@ -154,7 +160,7 @@ export function PublicCertificateValidationPage() {
             <div>
               <span>Código único</span>
               <strong>{certificate.publicCode}</strong>
-              <small>Snapshot de metadados v{certificate.metadataVersion}{certificate.validityPolicyVersion ? ` · política de validade v${certificate.validityPolicyVersion}` : ''}</small>
+              <small>Snapshot de metadados v{certificate.metadataVersion}{certificate.validityPolicyVersion ? ` · política de validade v${certificate.validityPolicyVersion}` : ''}{certificate.brand?.whiteLabelConfigured ? ' · marca white label preservada' : ''}</small>
             </div>
             {qrDataUrl && <img src={qrDataUrl} alt={`QR Code para validar ${certificate.publicCode}`} />}
           </div>
@@ -163,7 +169,7 @@ export function PublicCertificateValidationPage() {
         </article>
       )}
 
-      <footer className="publicCertificateFooter">Validação pública oficial da iFarm Academy.</footer>
+      <footer className="publicCertificateFooter">Validação pública oficial de {certificate?.brand?.academyName || 'iFarm Academy'}.</footer>
     </main>
   )
 }
