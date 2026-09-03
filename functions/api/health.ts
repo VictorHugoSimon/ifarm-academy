@@ -1,8 +1,9 @@
-import { json } from './_shared'
+import { json, type Env } from './_shared'
 
-export const onRequestGet = async () => json({
+export const onRequestGet = async ({ env }: { env: Env }) => json({
   service: 'ifarm-academy',
   status: 'ok',
-  version: '0.11.0',
+  environment: env.ACADEMY_ENVIRONMENT ?? 'unknown',
+  release: env.ACADEMY_RELEASE ?? 'unknown',
   timestamp: new Date().toISOString(),
 })
