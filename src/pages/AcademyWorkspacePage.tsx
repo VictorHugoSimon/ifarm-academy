@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CourseBuilderPage } from './CourseBuilderPage'
 import { QuizBuilderPage } from './QuizBuilderPage'
 import { StudentAssessmentPlayerPage } from './StudentAssessmentPlayerPage'
@@ -15,10 +15,12 @@ import { MarketplacePage } from './MarketplacePage'
 import { OperationsPage } from './OperationsPage'
 import { ReportsPage } from './ReportsPage'
 import { SmartFarmExperiencePage } from './SmartFarmExperiencePage'
+import { WhiteLabelPage } from './WhiteLabelPage'
+import { loadWhiteLabelContext, type WhiteLabelBrand } from '../services/whiteLabelApi'
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -30,6 +32,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['events', 'Eventos'],
   ['smart-farm', 'Smart Farm Experience'],
   ['marketplace', 'Marketplace'],
+  ['white-label', 'White Label'],
   ['instructors', 'Instrutores'],
   ['reports', 'Relatórios'],
   ['operations', 'Operações'],
@@ -41,14 +44,22 @@ const tabs: Array<[WorkspaceView, string]> = [
 
 export function AcademyWorkspacePage() {
   const [view, setView] = useState<WorkspaceView>('course')
+  const [runtimeBrand, setRuntimeBrand] = useState<WhiteLabelBrand | null>(null)
+
+  useEffect(() => {
+    void loadWhiteLabelContext().then((brand) => {
+      setRuntimeBrand(brand)
+      document.title = brand.academyName
+    }).catch(() => undefined)
+  }, [view])
 
   return (
     <div className="academyWorkspace">
       <div className="workspaceHeader">
         <div>
-          <small>iFarm Academy · Núcleo acadêmico</small>
+          <small>{runtimeBrand?.academyName || 'iFarm Academy'} · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos, Smart Farm Experience, marketplace, instrutores, governança de certificados, relatórios, observabilidade, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos, Smart Farm Experience, marketplace, white label, instrutores, governança de certificados, relatórios, observabilidade, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -67,6 +78,7 @@ export function AcademyWorkspacePage() {
       {view === 'events' && <EventOperationsPage />}
       {view === 'smart-farm' && <SmartFarmExperiencePage />}
       {view === 'marketplace' && <MarketplacePage />}
+      {view === 'white-label' && <WhiteLabelPage />}
       {view === 'instructors' && <InstructorGovernancePage />}
       {view === 'reports' && <ReportsPage />}
       {view === 'operations' && <OperationsPage />}
