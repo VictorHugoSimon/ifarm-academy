@@ -64,6 +64,9 @@ jobs:
       - name: Certificate validity fixtures
         run: python3 scripts/integration_certificate_validity_contract.py
 
+      - name: Operational hardening fixtures
+        run: python3 scripts/integration_operational_hardening_contract.py
+
       - name: Build
         run: npm run build
 
