@@ -70,6 +70,9 @@ jobs:
       - name: Smart Farm field experience fixtures
         run: python3 scripts/integration_smart_farm_experience_contract.py
 
+      - name: Marketplace fixtures
+        run: python3 scripts/integration_marketplace_contract.py
+
       - name: Build
         run: npm run build
 
