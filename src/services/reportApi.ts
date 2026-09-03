@@ -110,6 +110,32 @@ export interface AcademyReportResponse {
   }
 }
 
+export interface CertificateValidityReportItem {
+  publicCode: string
+  studentName: string
+  courseTitle: string
+  completionDate: string
+  issuedAt: string
+  validUntil?: string | null
+  validityPolicyVersion?: number | null
+}
+
+export interface CertificateValidityReportResponse {
+  generatedAt: string
+  kpis: {
+    regulatoryCertificates: number
+    expired: number
+    expiringIn30Days: number
+    revoked: number
+    withoutValidityPolicySnapshot: number
+    fixedMonthsPolicySnapshot: number
+    indefinitePolicySnapshot: number
+  }
+  expiring: CertificateValidityReportItem[]
+  missingPolicy: CertificateValidityReportItem[]
+  disclaimer: string
+}
+
 async function request<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
@@ -122,6 +148,10 @@ export async function loadAcademyReports(from?: string, to?: string): Promise<Ac
   if (to) query.set('to', to)
   const suffix = query.size ? `?${query.toString()}` : ''
   return request<AcademyReportResponse>(`/api/reports${suffix}`)
+}
+
+export async function loadCertificateValidityReport(): Promise<CertificateValidityReportResponse> {
+  return request<CertificateValidityReportResponse>('/api/certificate-validity-report')
 }
 
 export function rowsToCsv(rows: Array<Record<string, unknown>>): string {

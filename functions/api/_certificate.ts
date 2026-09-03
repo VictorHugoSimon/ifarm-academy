@@ -1,3 +1,9 @@
+import {
+  certificateEffectiveStatus,
+  snapshotCertificateValidity,
+  type StoredValidityPolicy,
+} from './_certificateValidity'
+
 export interface CertificateIssueInput {
   tenantId: string
   studentId: string
@@ -93,22 +99,42 @@ export async function tryIssueCertificate(db: any, input: CertificateIssueInput)
   const completionDate = String(cycle.completed_at ?? issuedAt)
   const publicCode = 'IFA-' + issuedAt.slice(0,4) + '-' + crypto.randomUUID().replaceAll('-','').slice(0,10).toUpperCase()
 
+  const validityPolicy = await db.prepare(`
+    SELECT * FROM academy_certificate_validity_policies
+    WHERE tenant_id=? AND course_id=? LIMIT 1
+  `).bind(input.tenantId, courseId).first()
+  const validity = snapshotCertificateValidity(
+    completionDate,
+    validityPolicy ? validityPolicy as StoredValidityPolicy : null,
+  )
+  const metadataVersion = 2
+
   await db.prepare(`
     INSERT INTO academy_certificates (
       id, cycle_id, public_code, student_id, student_name, course_id, course_title,
       final_score, issued_at, status, tenant_id, workload_minutes,
-      instructor_label, certificate_type, completion_date, metadata_version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, 1)
+      instructor_label, certificate_type, completion_date, metadata_version,
+      validity_mode, validity_policy_version, valid_until, validity_policy_snapshot_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, cycleId, publicCode, input.studentId, studentName, courseId, courseTitle,
     finalScore, issuedAt, input.tenantId, workloadMinutes, instructorLabel,
-    certificateType, completionDate,
+    certificateType, completionDate, metadataVersion,
+    validity.validityMode, validity.validityPolicyVersion, validity.validUntil,
+    JSON.stringify(validity.snapshot),
   ).run()
+
+  const effectiveStatus = certificateEffectiveStatus('valid', validity.validUntil, new Date(issuedAt))
 
   return { issued: true, certificate: {
     id, cycleId, cycleNumber: Number(cycle.cycle_number ?? 1), publicCode,
     tenantId: input.tenantId, studentId: input.studentId, studentName,
     courseId, courseTitle, finalScore, issuedAt, completionDate,
-    workloadMinutes, instructorLabel, certificateType, metadataVersion: 1, status: 'valid',
+    workloadMinutes, instructorLabel, certificateType, metadataVersion,
+    status: 'valid', effectiveStatus,
+    validityMode: validity.validityMode,
+    validityPolicyVersion: validity.validityPolicyVersion,
+    validUntil: validity.validUntil,
+    validityPolicyConfigured: validity.validityMode !== 'not_configured',
   } }
 }

@@ -1,4 +1,6 @@
 export type CertificateType = 'free_course' | 'corporate_training' | 'regulatory_training' | 'partner_certification'
+export type CertificateEffectiveStatus = 'valid' | 'expired' | 'revoked'
+export type CertificateValidityMode = 'not_configured' | 'indefinite' | 'fixed_months'
 
 export interface CertificateRecord {
   id?: string
@@ -9,11 +11,16 @@ export interface CertificateRecord {
   finalScore?: number | null
   issuedAt: string
   status: 'valid' | 'revoked'
+  effectiveStatus?: CertificateEffectiveStatus
   workloadMinutes: number
   instructorLabel?: string | null
   certificateType: CertificateType
   completionDate: string
   metadataVersion: number
+  validityMode?: CertificateValidityMode
+  validityPolicyVersion?: number | null
+  validUntil?: string | null
+  validityPolicyConfigured?: boolean
 }
 
 async function jsonRequest<T>(url: string): Promise<T> {
@@ -31,8 +38,8 @@ export async function loadMyCertificates(): Promise<CertificateRecord[]> {
   return result.data
 }
 
-export async function validatePublicCertificate(code: string): Promise<{ valid: boolean; certificate: CertificateRecord }> {
-  return jsonRequest<{ valid: boolean; certificate: CertificateRecord }>(
+export async function validatePublicCertificate(code: string): Promise<{ valid: boolean; effectiveStatus?: CertificateEffectiveStatus; certificate: CertificateRecord }> {
+  return jsonRequest<{ valid: boolean; effectiveStatus?: CertificateEffectiveStatus; certificate: CertificateRecord }>(
     `/api/certificates/public/${encodeURIComponent(code.trim().toUpperCase())}`,
   )
 }
@@ -50,4 +57,18 @@ export function formatWorkload(minutes: number): string {
   if (hours && remaining) return `${hours}h ${remaining}min`
   if (hours) return `${hours}h`
   return `${remaining}min`
+}
+
+export function certificateStatusLabel(status?: CertificateEffectiveStatus) {
+  if (status === 'expired') return 'Expirado'
+  if (status === 'revoked') return 'Revogado'
+  return 'Válido'
+}
+
+export function certificateValidityLabel(certificate: CertificateRecord) {
+  if (certificate.validityMode === 'fixed_months' && certificate.validUntil) {
+    return `Válido até ${new Date(certificate.validUntil).toLocaleDateString('pt-BR')}`
+  }
+  if (certificate.validityMode === 'indefinite') return 'Sem data de expiração segundo política registrada'
+  return 'Política temporal de validade não configurada'
 }

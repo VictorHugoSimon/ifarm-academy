@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import {
+  certificateStatusLabel,
   certificateValidationUrl,
+  certificateValidityLabel,
   formatWorkload,
   validatePublicCertificate,
   type CertificateRecord,
@@ -20,14 +22,17 @@ function dateLabel(value: string) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR')
 }
 
-function certificateNotice(type: CertificateRecord['certificateType']) {
-  if (type === 'regulatory_training') {
-    return 'A classificação como treinamento regulamentar não substitui a verificação dos requisitos específicos da norma aplicável, incluindo modalidade, carga horária, prática, qualificação dos responsáveis e evidências exigidas.'
+function certificateNotice(certificate: CertificateRecord) {
+  if (certificate.certificateType === 'regulatory_training') {
+    const validity = certificate.validityPolicyConfigured
+      ? 'A validade temporal exibida corresponde à política explicitamente registrada no momento da emissão.'
+      : 'Nenhuma política temporal de validade foi registrada no snapshot deste certificado; isso não deve ser interpretado como validade regulatória indefinida.'
+    return `A classificação como treinamento regulamentar não substitui a verificação dos requisitos específicos da norma aplicável, incluindo modalidade, carga horária, prática, qualificação dos responsáveis e evidências exigidas. ${validity}`
   }
-  if (type === 'free_course') {
+  if (certificate.certificateType === 'free_course') {
     return 'Este documento comprova a conclusão de curso livre na iFarm Academy e não representa, por si só, habilitação profissional ou reconhecimento regulatório externo.'
   }
-  return 'Este documento comprova a conclusão registrada na iFarm Academy conforme os metadados preservados no momento da emissão.'
+  return 'Este documento comprova a conclusão registrada na iFarm Academy conforme os metadados e a política de validade preservados no momento da emissão.'
 }
 
 export function PublicCertificateValidationPage() {
@@ -51,10 +56,18 @@ export function PublicCertificateValidationPage() {
     void validatePublicCertificate(code)
       .then(async (result) => {
         if (cancelled) return
-        setCertificate(result.certificate)
+        const effectiveStatus = result.certificate.effectiveStatus ?? result.effectiveStatus ?? (result.valid ? 'valid' : 'revoked')
+        const nextCertificate = { ...result.certificate, effectiveStatus }
+        setCertificate(nextCertificate)
         setValid(result.valid)
-        setMessage(result.valid ? 'Certificado válido e localizado.' : 'Certificado localizado, mas não está válido.')
-        const url = certificateValidationUrl(result.certificate.publicCode)
+        setMessage(
+          effectiveStatus === 'valid'
+            ? 'Certificado localizado e com status público válido.'
+            : effectiveStatus === 'expired'
+              ? 'Certificado autêntico, porém com validade temporal expirada segundo o snapshot emitido.'
+              : 'Certificado autêntico, porém revogado.',
+        )
+        const url = certificateValidationUrl(nextCertificate.publicCode)
         const qr = await QRCode.toDataURL(url, { width: 196, margin: 1, errorCorrectionLevel: 'M' })
         if (!cancelled) setQrDataUrl(qr)
       })
@@ -80,17 +93,16 @@ export function PublicCertificateValidationPage() {
     setCode(normalized)
   }
 
+  const effectiveStatus = certificate?.effectiveStatus ?? (valid ? 'valid' : 'revoked')
+
   return (
     <main className="publicCertificatePage">
       <header className="publicCertificateHeader">
-        <div className="publicBrand">
-          <strong>iFarm</strong>
-          <span>Academy</span>
-        </div>
+        <div className="publicBrand"><strong>iFarm</strong><span>Academy</span></div>
         <div>
           <small>Validação pública</small>
           <h1>Verificar certificado</h1>
-          <p>Consulte a autenticidade e os dados acadêmicos preservados na emissão.</p>
+          <p>Consulte a autenticidade, a situação pública e os dados acadêmicos preservados na emissão.</p>
         </div>
       </header>
 
@@ -102,20 +114,20 @@ export function PublicCertificateValidationPage() {
         </div>
       </form>
 
-      <section className={`validationMessage ${certificate ? (valid ? 'valid' : 'invalid') : ''}`}>
-        <strong>{loading ? 'Consultando registro' : certificate ? (valid ? 'Registro confirmado' : 'Registro sem validade ativa') : 'Consulta de certificado'}</strong>
+      <section className={`validationMessage ${certificate ? effectiveStatus : ''}`}>
+        <strong>{loading ? 'Consultando registro' : certificate ? `Registro ${certificateStatusLabel(effectiveStatus).toLowerCase()}` : 'Consulta de certificado'}</strong>
         <span>{message}</span>
       </section>
 
       {certificate && (
-        <article className={`certificateDocument ${valid ? '' : 'revoked'}`}>
+        <article className={`certificateDocument ${effectiveStatus}`}>
           <div className="certificateDocumentTop">
             <div>
               <small>iFarm Academy</small>
               <h2>Certificado de Conclusão</h2>
               <p>{typeLabels[certificate.certificateType]}</p>
             </div>
-            <span className="certificateStatus">{valid ? 'VÁLIDO' : 'REVOGADO'}</span>
+            <span className="certificateStatus">{certificateStatusLabel(effectiveStatus).toUpperCase()}</span>
           </div>
 
           <div className="certificateStatement">
@@ -129,6 +141,7 @@ export function PublicCertificateValidationPage() {
             <div><span>Carga horária</span><strong>{formatWorkload(certificate.workloadMinutes)}</strong></div>
             <div><span>Conclusão</span><strong>{dateLabel(certificate.completionDate)}</strong></div>
             <div><span>Emissão</span><strong>{dateLabel(certificate.issuedAt)}</strong></div>
+            <div><span>Validade</span><strong>{certificateValidityLabel(certificate)}</strong></div>
             {certificate.finalScore != null && <div><span>Nota final</span><strong>{certificate.finalScore}%</strong></div>}
           </div>
 
@@ -141,12 +154,12 @@ export function PublicCertificateValidationPage() {
             <div>
               <span>Código único</span>
               <strong>{certificate.publicCode}</strong>
-              <small>Snapshot de metadados v{certificate.metadataVersion}</small>
+              <small>Snapshot de metadados v{certificate.metadataVersion}{certificate.validityPolicyVersion ? ` · política de validade v${certificate.validityPolicyVersion}` : ''}</small>
             </div>
             {qrDataUrl && <img src={qrDataUrl} alt={`QR Code para validar ${certificate.publicCode}`} />}
           </div>
 
-          <p className="certificateNotice">{certificateNotice(certificate.certificateType)}</p>
+          <p className="certificateNotice">{certificateNotice(certificate)}</p>
         </article>
       )}
 
