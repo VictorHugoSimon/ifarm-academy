@@ -34,7 +34,7 @@ Os valores são defaults técnicos reversíveis e podem ser sobrescritos por amb
 - não registra proxy secret;
 - não registra e-mail, nome, CPF/documentos, respostas de avaliação ou user ID em claro;
 - o identificador usado no rate limiter é reduzido a hash SHA-256;
-- `/api/operations-status` exige papel `academy_admin` ou `ifarm_admin` pelo boundary confiável.
+- `/api/operations-status` exige papel global `ifarm_admin`, pois consolida saúde da plataforma inteira e não apenas de um tenant.
 
 ## Backup/restore
 Esta release não declara backup real concluído. O runbook prepara a operação, mas mecanismo oficial, frequência, retenção, RPO e RTO só serão definidos e homologados após o D1 exclusivo de STAGE existir.
