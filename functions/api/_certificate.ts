@@ -3,6 +3,7 @@ import {
   snapshotCertificateValidity,
   type StoredValidityPolicy,
 } from './_certificateValidity'
+import { resolveTenantBrand } from './_whiteLabel'
 
 export interface CertificateIssueInput {
   tenantId: string
@@ -107,21 +108,24 @@ export async function tryIssueCertificate(db: any, input: CertificateIssueInput)
     completionDate,
     validityPolicy ? validityPolicy as StoredValidityPolicy : null,
   )
-  const metadataVersion = 2
+  const brand = await resolveTenantBrand(db, input.tenantId)
+  const brandSnapshot = { version: 1, ...brand }
+  const metadataVersion = 3
 
   await db.prepare(`
     INSERT INTO academy_certificates (
       id, cycle_id, public_code, student_id, student_name, course_id, course_title,
       final_score, issued_at, status, tenant_id, workload_minutes,
       instructor_label, certificate_type, completion_date, metadata_version,
-      validity_mode, validity_policy_version, valid_until, validity_policy_snapshot_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      validity_mode, validity_policy_version, valid_until, validity_policy_snapshot_json,
+      brand_snapshot_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     id, cycleId, publicCode, input.studentId, studentName, courseId, courseTitle,
     finalScore, issuedAt, input.tenantId, workloadMinutes, instructorLabel,
     certificateType, completionDate, metadataVersion,
     validity.validityMode, validity.validityPolicyVersion, validity.validUntil,
-    JSON.stringify(validity.snapshot),
+    JSON.stringify(validity.snapshot), JSON.stringify(brandSnapshot),
   ).run()
 
   const effectiveStatus = certificateEffectiveStatus('valid', validity.validUntil, new Date(issuedAt))
@@ -136,5 +140,6 @@ export async function tryIssueCertificate(db: any, input: CertificateIssueInput)
     validityPolicyVersion: validity.validityPolicyVersion,
     validUntil: validity.validUntil,
     validityPolicyConfigured: validity.validityMode !== 'not_configured',
+    brand: brandSnapshot,
   } }
 }
