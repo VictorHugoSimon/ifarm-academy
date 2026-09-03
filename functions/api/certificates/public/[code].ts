@@ -1,5 +1,6 @@
 import { certificateEffectiveStatus } from '../../_certificateValidity'
-import { dbOr503, json, type Env } from '../../_shared'
+import { DEFAULT_ACADEMY_BRAND } from '../../_whiteLabel'
+import { dbOr503, json, safeJson, type Env } from '../../_shared'
 
 export const onRequestGet = async ({ env, params }: { env: Env; params: Record<string,string> }) => {
   const db = dbOr503(env); if (db instanceof Response) return db
@@ -10,7 +11,8 @@ export const onRequestGet = async ({ env, params }: { env: Env; params: Record<s
     SELECT
       public_code, student_name, course_title, final_score, issued_at, status,
       workload_minutes, instructor_label, certificate_type, completion_date,
-      metadata_version, validity_mode, validity_policy_version, valid_until
+      metadata_version, validity_mode, validity_policy_version, valid_until,
+      brand_snapshot_json
     FROM academy_certificates
     WHERE public_code=?
     LIMIT 1
@@ -22,6 +24,7 @@ export const onRequestGet = async ({ env, params }: { env: Env; params: Record<s
     certificate.valid_until == null ? null : String(certificate.valid_until),
   )
   const validityMode = String(certificate.validity_mode ?? 'not_configured')
+  const brand = safeJson(certificate.brand_snapshot_json, { version: 1, ...DEFAULT_ACADEMY_BRAND })
 
   return json({
     valid: effectiveStatus === 'valid',
@@ -43,6 +46,7 @@ export const onRequestGet = async ({ env, params }: { env: Env; params: Record<s
       validityPolicyVersion: certificate.validity_policy_version == null ? null : Number(certificate.validity_policy_version),
       validUntil: certificate.valid_until ?? null,
       validityPolicyConfigured: validityMode !== 'not_configured',
+      brand,
     },
   })
 }
