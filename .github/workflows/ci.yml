@@ -73,6 +73,9 @@ jobs:
       - name: Marketplace fixtures
         run: python3 scripts/integration_marketplace_contract.py
 
+      - name: White label fixtures
+        run: python3 scripts/integration_white_label_contract.py
+
       - name: Build
         run: npm run build
 
