@@ -1,7 +1,7 @@
 import { requireAdminContext } from './_auth'
 import { dbOr503, json, safeJson, type Env } from './_shared'
 
-const roles = ['academy_admin', 'ifarm_admin']
+const roles = ['ifarm_admin']
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
   const auth = requireAdminContext(env, request, roles)
