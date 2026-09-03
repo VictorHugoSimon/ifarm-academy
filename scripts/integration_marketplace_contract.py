@@ -7,7 +7,7 @@ conn.execute('PRAGMA foreign_keys = ON')
 for migration in sorted((ROOT / 'migrations').glob('*.sql')):
     conn.executescript(migration.read_text(encoding='utf-8'))
 
-now = '2026-09-03T12:00:00.000Z'
+now = '2026-01-01T12:00:00.000Z'
 
 for tenant, course, instructor, user in [
     ('T1','C1','I1','U1'),
@@ -29,6 +29,13 @@ for tenant, course, instructor, user in [
 conn.execute('''INSERT INTO academy_marketplace_submissions
   (id,tenant_id,course_id,submitter_instructor_id,status,submitted_at,created_at,updated_at)
   VALUES ('S1','T1','C1','I1','approved',?,?,?)''', (now,now,now))
+
+# Publication must be blocked while no effective commission rule exists.
+try:
+    conn.execute("UPDATE academy_marketplace_submissions SET status='published' WHERE id='S1'")
+    raise AssertionError('marketplace publication without commission rule was accepted')
+except sqlite3.IntegrityError:
+    pass
 
 # Cross-tenant course must be rejected.
 try:
@@ -57,6 +64,17 @@ conn.execute('''INSERT INTO academy_marketplace_commission_rules
    gateway_fee_responsibility,valid_from,valid_until,rationale,confirmed_by,confirmed_at,created_at)
   VALUES ('CR1','T1','S1',1,'active','percentage',2000,7500,500,'BRL','shared',?,NULL,'Regra aprovada','ADMIN',?,?)''',
   (now,now,now))
+
+# With an effective rule, publication is allowed.
+conn.execute("UPDATE academy_marketplace_submissions SET status='published',published_by='ADMIN',published_at=? WHERE id='S1'", (now,))
+assert conn.execute("SELECT status FROM academy_marketplace_submissions WHERE id='S1'").fetchone()[0] == 'published'
+
+# Submission identity is immutable.
+try:
+    conn.execute("UPDATE academy_marketplace_submissions SET tenant_id='T2' WHERE id='S1'")
+    raise AssertionError('marketplace submission identity was mutable')
+except sqlite3.IntegrityError:
+    pass
 
 # Percent shares must total exactly 10000 basis points.
 try:
