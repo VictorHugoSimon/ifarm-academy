@@ -22,6 +22,14 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       AND s.status='published'
       AND datetime(r.valid_from) <= datetime('now')
       AND (r.valid_until IS NULL OR datetime(r.valid_until) > datetime('now'))
+      AND (
+        COALESCE((SELECT w.catalog_mode FROM academy_white_label_settings w
+          WHERE w.tenant_id=s.tenant_id AND w.status='active' LIMIT 1),'all_tenant_courses')='all_tenant_courses'
+        OR EXISTS (
+          SELECT 1 FROM academy_white_label_catalog_courses cs
+          WHERE cs.tenant_id=s.tenant_id AND cs.course_id=s.course_id AND cs.visible=1
+        )
+      )
     ORDER BY s.published_at DESC, c.title
   `).bind(auth.tenantId).all()
 
