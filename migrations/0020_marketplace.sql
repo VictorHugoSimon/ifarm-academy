@@ -75,6 +75,27 @@ BEGIN
   ) THEN RAISE(ABORT, 'marketplace submitter must be active course author or instructor') END;
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_marketplace_submission_identity_update
+BEFORE UPDATE ON academy_marketplace_submissions
+BEGIN
+  SELECT CASE WHEN NEW.tenant_id != OLD.tenant_id OR NEW.course_id != OLD.course_id OR NEW.submitter_instructor_id != OLD.submitter_instructor_id
+  THEN RAISE(ABORT, 'marketplace submission identity is immutable') END;
+
+  SELECT CASE WHEN NEW.status='published' AND NOT EXISTS (
+    SELECT 1 FROM academy_courses c
+    WHERE c.id=NEW.course_id AND c.tenant_id=NEW.tenant_id AND c.status='published'
+  ) THEN RAISE(ABORT, 'marketplace publication requires published course') END;
+
+  SELECT CASE WHEN NEW.status='published' AND NOT EXISTS (
+    SELECT 1 FROM academy_marketplace_commission_rules r
+    WHERE r.tenant_id=NEW.tenant_id
+      AND r.submission_id=NEW.id
+      AND r.status='active'
+      AND datetime(r.valid_from) <= datetime('now')
+      AND (r.valid_until IS NULL OR datetime(r.valid_until) > datetime('now'))
+  ) THEN RAISE(ABORT, 'marketplace publication requires effective active commission rule') END;
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_marketplace_commission_integrity_insert
 BEFORE INSERT ON academy_marketplace_commission_rules
 BEGIN
@@ -83,10 +104,19 @@ BEGIN
     WHERE s.id=NEW.submission_id AND s.tenant_id=NEW.tenant_id
   ) THEN RAISE(ABORT, 'marketplace commission tenant/submission mismatch') END;
 
+  SELECT CASE WHEN NEW.status='active' AND NOT EXISTS (
+    SELECT 1 FROM academy_marketplace_submissions s
+    WHERE s.id=NEW.submission_id AND s.tenant_id=NEW.tenant_id AND s.status IN ('approved','published')
+  ) THEN RAISE(ABORT, 'active marketplace commission requires approved submission') END;
+
   SELECT CASE WHEN NEW.calculation_mode='percentage' AND (
     NEW.ifarm_share_value > 10000 OR NEW.instructor_share_value > 10000 OR NEW.partner_share_value > 10000 OR
     NEW.ifarm_share_value + NEW.instructor_share_value + NEW.partner_share_value != 10000
   ) THEN RAISE(ABORT, 'marketplace percentage shares must total 10000 basis points') END;
+
+  SELECT CASE WHEN NEW.calculation_mode='fixed_amount' AND (
+    NEW.ifarm_share_value + NEW.instructor_share_value + NEW.partner_share_value <= 0
+  ) THEN RAISE(ABORT, 'marketplace fixed shares must distribute a positive amount') END;
 
   SELECT CASE WHEN NEW.valid_until IS NOT NULL AND datetime(NEW.valid_until) <= datetime(NEW.valid_from)
   THEN RAISE(ABORT, 'marketplace commission valid_until must be after valid_from') END;
@@ -102,4 +132,8 @@ BEGIN
     NEW.ifarm_share_value > 10000 OR NEW.instructor_share_value > 10000 OR NEW.partner_share_value > 10000 OR
     NEW.ifarm_share_value + NEW.instructor_share_value + NEW.partner_share_value != 10000
   ) THEN RAISE(ABORT, 'marketplace percentage shares must total 10000 basis points') END;
+
+  SELECT CASE WHEN NEW.calculation_mode='fixed_amount' AND (
+    NEW.ifarm_share_value + NEW.instructor_share_value + NEW.partner_share_value <= 0
+  ) THEN RAISE(ABORT, 'marketplace fixed shares must distribute a positive amount') END;
 END;
