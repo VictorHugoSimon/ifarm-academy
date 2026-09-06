@@ -9,6 +9,8 @@ export interface Env {
   ACADEMY_RATE_LIMIT_PUBLIC_PER_MINUTE?: string
   ACADEMY_RATE_LIMIT_AUTH_PER_MINUTE?: string
   ACADEMY_RATE_LIMIT_WRITE_PER_MINUTE?: string
+  ACADEMY_PUBLIC_DEFAULT_HOST?: string
+  ACADEMY_PUBLIC_DEFAULT_TENANT_ID?: string
 }
 
 export function json(data: unknown, status = 200): Response {
