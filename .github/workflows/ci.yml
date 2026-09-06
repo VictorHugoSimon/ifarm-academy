@@ -76,6 +76,9 @@ jobs:
       - name: White label fixtures
         run: python3 scripts/integration_white_label_contract.py
 
+      - name: Gamification fixtures
+        run: python3 scripts/integration_gamification_contract.py
+
       - name: Build
         run: npm run build
 

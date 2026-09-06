@@ -1,6 +1,7 @@
 import { auditStatement } from './_audit'
 import { requireTrustedContext } from './_auth'
 import { tryCompleteEnrollment } from './_completion'
+import { recordGamificationEvent } from './_gamification'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 const MAX_RESUME_POSITION_SECONDS = 24 * 60 * 60
@@ -88,10 +89,12 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     LIMIT 1
   `).bind(context.tenantId, context.userId, courseId, cycleId, lessonId).first()
 
-  const progressPercent = Math.max(Number(current?.progress_percent ?? 0), Math.round(requestedProgress))
+  const previousProgress = Number(current?.progress_percent ?? 0)
+  const progressPercent = Math.max(previousProgress, Math.round(requestedProgress))
   const lastPositionSeconds = Math.round(requestedPosition)
   const now = new Date().toISOString()
   const completedAt = progressPercent >= 100 ? String(current?.completed_at ?? now) : null
+  const lessonNewlyCompleted = previousProgress < 100 && progressPercent >= 100
 
   await db.prepare(`
     INSERT INTO academy_progress (
@@ -141,6 +144,29 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     }).run()
   }
 
+  const gamificationEvents: unknown[] = []
+  const safeAward = async (eventType: 'lesson_completed'|'course_completed'|'certificate_issued', sourceType: string, sourceId: string) => {
+    try {
+      const result = await recordGamificationEvent(db, {
+        tenantId: context.tenantId,
+        userId: context.userId,
+        eventType,
+        sourceType,
+        sourceId,
+        occurredAt: now,
+      })
+      gamificationEvents.push({ eventType, ...result })
+    } catch {
+      gamificationEvents.push({ eventType, awarded: false, reason: 'gamification_unavailable' })
+    }
+  }
+
+  if (lessonNewlyCompleted) await safeAward('lesson_completed', 'lesson_cycle', `${cycleId}:${lessonId}`)
+  if (completion.newlyCompleted) await safeAward('course_completed', 'learning_cycle', cycleId)
+  if (completion.certificate?.issued && completion.certificate.certificate) {
+    await safeAward('certificate_issued', 'certificate', String(completion.certificate.certificate.id ?? ''))
+  }
+
   return json({ data: {
     tenantId: context.tenantId,
     studentId: context.userId,
@@ -153,5 +179,6 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     completedAt,
     updatedAt: now,
     enrollmentCompletion: completion,
+    gamification: gamificationEvents,
   } })
 }

@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.36
+## Concluído até v0.37
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder, Quiz Builder, publicação, catálogo, matrícula, Student Player, progresso e conclusão server-side.
@@ -19,6 +19,8 @@
 - Catálogo white label em modo todos os cursos ou seleção explícita com destaque.
 - Catálogo acadêmico e marketplace respeitando o scope do tenant.
 - Snapshot imutável da marca em certificados novos e renderização pública da marca preservada.
+- Gamificação foundation com XP versionado/configurável, ledger idempotente, níveis, badges e streak.
+- Gamificação fail-open e totalmente desacoplada de nota, aprovação, certificado e compliance.
 - CI com migrations, testes unitários e fixtures D1-compatible específicas por módulo.
 
 ## Próximas prioridades
@@ -31,7 +33,7 @@
 7. IA Tutor com RAG autorizado após a base de conteúdo, permissões e infraestrutura estarem homologadas.
 8. Alertas externos, backup/restore real e SLOs após STAGE; RPO/RTO permanecem TBD.
 9. White label avançado: e-mail, assets dedicados e automação de domínio somente após infraestrutura homologada.
-10. Gamificação completa e automações comerciais avançadas após estabilização do MVP.
+10. Gamificação avançada: desafios, metas, ranking opt-in, campanhas e conquistas especiais após estabilização do MVP.
 
 ## Governança
 - `develop` é a linha de integração.
@@ -48,6 +50,8 @@
 - Marketplace não assume percentual, preço, split, repasse ou regra fiscal; toda regra comercial deve ser explícita e versionada.
 - White Label não executa CSS/HTML arbitrário nem provisiona DNS automaticamente.
 - Domínio white label só pode ser registrado como verificado após evidência humana por `ifarm_admin`.
+- Gamificação não altera nota, carga horária, elegibilidade de certificado ou conformidade; XP é apenas motivacional.
+- Nenhum valor padrão de XP ou benefício financeiro é presumido.
 - Logs operacionais não devem registrar PII, secrets, respostas de prova ou corpo de requisição.
 - Rate limiting pode falhar aberto para disponibilidade; identity boundary permanece fail-closed.
 - RPO, RTO, CNAE, regras fiscais e percentual de comissão do marketplace permanecem TBD.
