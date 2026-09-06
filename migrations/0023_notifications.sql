@@ -59,3 +59,17 @@ BEGIN
   SELECT CASE WHEN NEW.status='archived' AND NEW.archived_at IS NULL
     THEN RAISE(ABORT, 'archived notification requires archived_at') END;
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_notification_external_channels_insert
+BEFORE INSERT ON academy_notification_preferences
+BEGIN
+  SELECT CASE WHEN NEW.email_enabled!=0 OR NEW.push_enabled!=0
+    THEN RAISE(ABORT, 'external notification channels are not enabled in v0.38') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_notification_external_channels_update
+BEFORE UPDATE ON academy_notification_preferences
+BEGIN
+  SELECT CASE WHEN NEW.email_enabled!=0 OR NEW.push_enabled!=0
+    THEN RAISE(ABORT, 'external notification channels are not enabled in v0.38') END;
+END;
