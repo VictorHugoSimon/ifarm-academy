@@ -10,6 +10,7 @@ import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import { EnterpriseTrainingPage } from './EnterpriseTrainingPage'
 import { EnterprisePathsPage } from './EnterprisePathsPage'
 import { EventOperationsPage } from './EventOperationsPage'
+import { GamificationPage } from './GamificationPage'
 import { InstructorGovernancePage } from './InstructorGovernancePage'
 import { MarketplacePage } from './MarketplacePage'
 import { OperationsPage } from './OperationsPage'
@@ -20,7 +21,7 @@ import { loadWhiteLabelContext, type WhiteLabelBrand } from '../services/whiteLa
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'gamification' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -38,6 +39,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['operations', 'Operações'],
   ['certificate-validity', 'Validade certificados'],
   ['student', 'Experiência do aluno'],
+  ['gamification', 'Gamificação'],
   ['review', 'Revisão manual'],
   ['certificate', 'Certificação'],
 ]
@@ -59,7 +61,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>{runtimeBrand?.academyName || 'iFarm Academy'} · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos, Smart Farm Experience, marketplace, white label, instrutores, governança de certificados, relatórios, observabilidade, experiência do aluno, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, matrícula, educação corporativa, trilhas, eventos, Smart Farm Experience, marketplace, white label, instrutores, governança de certificados, relatórios, observabilidade, experiência do aluno, gamificação, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -84,6 +86,7 @@ export function AcademyWorkspacePage() {
       {view === 'operations' && <OperationsPage />}
       {view === 'certificate-validity' && <CertificateValidityGovernancePage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
+      {view === 'gamification' && <GamificationPage />}
       {view === 'review' && <AssessmentReviewPage />}
       {view === 'certificate' && <CertificateEligibilityPage />}
     </div>
