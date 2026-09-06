@@ -2,6 +2,7 @@ import { auditStatement } from './_audit'
 import { requireTrustedContext } from './_auth'
 import { tryCompleteEnrollment } from './_completion'
 import { recordGamificationEvent } from './_gamification'
+import { createInAppNotification } from './_notifications'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 const MAX_RESUME_POSITION_SECONDS = 24 * 60 * 60
@@ -167,6 +168,54 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     await safeAward('certificate_issued', 'certificate', String(completion.certificate.certificate.id ?? ''))
   }
 
+  const notificationEvents: unknown[] = []
+  const safeNotify = async (input: Parameters<typeof createInAppNotification>[1]) => {
+    try {
+      const result = await createInAppNotification(db, input)
+      notificationEvents.push({ notificationType: input.notificationType, ...result })
+    } catch {
+      notificationEvents.push({ notificationType: input.notificationType, created: false, reason: 'notification_unavailable' })
+    }
+  }
+
+  if (completion.newlyCompleted) {
+    const course = await db.prepare(`SELECT title FROM academy_courses WHERE tenant_id=? AND id=? LIMIT 1`)
+      .bind(context.tenantId, courseId).first()
+    const courseTitle = String(course?.title ?? 'Curso concluído')
+    await safeNotify({
+      tenantId: context.tenantId,
+      userId: context.userId,
+      category: 'academic',
+      notificationType: 'course_completed',
+      title: 'Curso concluído',
+      message: `Você concluiu ${courseTitle}.`,
+      priority: 'important',
+      sourceType: 'learning_cycle',
+      sourceId: cycleId,
+      dedupeKey: `course_completed:${cycleId}`,
+      createdAt: now,
+      payload: { courseId, cycleId },
+    })
+  }
+
+  if (completion.certificate?.issued && completion.certificate.certificate) {
+    const certificate = completion.certificate.certificate
+    await safeNotify({
+      tenantId: context.tenantId,
+      userId: context.userId,
+      category: 'academic',
+      notificationType: 'certificate_issued',
+      title: 'Novo certificado disponível',
+      message: `Seu certificado de ${String(certificate.courseTitle ?? 'conclusão')} foi emitido.`,
+      priority: 'important',
+      sourceType: 'certificate',
+      sourceId: String(certificate.id ?? ''),
+      dedupeKey: `certificate_issued:${String(certificate.id ?? '')}`,
+      createdAt: now,
+      payload: { certificateId: certificate.id ?? null, publicCode: certificate.publicCode ?? null, courseId },
+    })
+  }
+
   return json({ data: {
     tenantId: context.tenantId,
     studentId: context.userId,
@@ -180,5 +229,6 @@ export const onRequestPut = async ({ env, request }: { env: Env; request: Reques
     updatedAt: now,
     enrollmentCompletion: completion,
     gamification: gamificationEvents,
+    notifications: notificationEvents,
   } })
 }

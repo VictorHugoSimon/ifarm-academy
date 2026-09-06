@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.37
+## Concluído até v0.38
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder, Quiz Builder, publicação, catálogo, matrícula, Student Player, progresso e conclusão server-side.
@@ -21,19 +21,22 @@
 - Snapshot imutável da marca em certificados novos e renderização pública da marca preservada.
 - Gamificação foundation com XP versionado/configurável, ledger idempotente, níveis, badges e streak.
 - Gamificação fail-open e totalmente desacoplada de nota, aprovação, certificado e compliance.
+- Notification Center in-app com inbox, prioridades, estados, preferências e deduplicação por evento.
+- Notificações de conclusão de curso e certificado emitido em modo fail-open.
+- Canais externos de notificação permanecem estruturalmente desabilitados até integração homologada com o iFarm Core/provedor.
 - CI com migrations, testes unitários e fixtures D1-compatible específicas por módulo.
 
 ## Próximas prioridades
 1. Lockfile íntegro e migração do CI de `npm install` para `npm ci` quando puder ser gerado em ambiente com rede e integridade verificável.
 2. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
-3. Integração definitiva com sessão/RBAC do iFarm Core, incluindo escopo confiável de `company_admin` por empresa.
-4. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
-5. Checkout e Mercado Pago, incluindo eventos pagos e marketplace, após identity boundary real e validações comerciais/fiscais.
-6. Marketplace financeiro: split, repasses, extrato e conciliação após definição comercial e fiscal.
-7. IA Tutor com RAG autorizado após a base de conteúdo, permissões e infraestrutura estarem homologadas.
-8. Alertas externos, backup/restore real e SLOs após STAGE; RPO/RTO permanecem TBD.
-9. White label avançado: e-mail, assets dedicados e automação de domínio somente após infraestrutura homologada.
-10. Gamificação avançada: desafios, metas, ranking opt-in, campanhas e conquistas especiais após estabilização do MVP.
+3. Integração definitiva com sessão/RBAC e barramento de notificações do iFarm Core, incluindo escopo confiável de `company_admin` por empresa.
+4. Portal público tenant-aware: home, catálogo, detalhe de curso e eventos, usando domínio white label verificado ou host Academy configurado.
+5. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
+6. Checkout e Mercado Pago, incluindo eventos pagos e marketplace, após identity boundary real e validações comerciais/fiscais.
+7. Marketplace financeiro: split, repasses, extrato e conciliação após definição comercial e fiscal.
+8. IA Tutor com RAG autorizado após a base de conteúdo, permissões e infraestrutura estarem homologadas.
+9. Alertas externos, backup/restore real e SLOs após STAGE; RPO/RTO permanecem TBD.
+10. Gamificação avançada, white label avançado e automações comerciais após estabilização do MVP.
 
 ## Governança
 - `develop` é a linha de integração.
@@ -52,6 +55,8 @@
 - Domínio white label só pode ser registrado como verificado após evidência humana por `ifarm_admin`.
 - Gamificação não altera nota, carga horária, elegibilidade de certificado ou conformidade; XP é apenas motivacional.
 - Nenhum valor padrão de XP ou benefício financeiro é presumido.
+- Notification Center é projeção in-app da Academy; não substitui o futuro barramento oficial de notificações do iFarm Core.
+- E-mail, push e WhatsApp não podem ser ativados nesta versão.
 - Logs operacionais não devem registrar PII, secrets, respostas de prova ou corpo de requisição.
 - Rate limiting pode falhar aberto para disponibilidade; identity boundary permanece fail-closed.
 - RPO, RTO, CNAE, regras fiscais e percentual de comissão do marketplace permanecem TBD.
