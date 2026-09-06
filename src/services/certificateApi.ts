@@ -2,6 +2,19 @@ export type CertificateType = 'free_course' | 'corporate_training' | 'regulatory
 export type CertificateEffectiveStatus = 'valid' | 'expired' | 'revoked'
 export type CertificateValidityMode = 'not_configured' | 'indefinite' | 'fixed_months'
 
+export interface CertificateBrandSnapshot {
+  version?: number
+  brandName: string
+  academyName: string
+  primaryColor: string
+  secondaryColor: string
+  accentColor: string
+  logoRef?: string | null
+  certificateHeading?: string | null
+  catalogMode?: 'all_tenant_courses' | 'selected_courses'
+  whiteLabelConfigured?: boolean
+}
+
 export interface CertificateRecord {
   id?: string
   publicCode: string
@@ -21,6 +34,7 @@ export interface CertificateRecord {
   validityPolicyVersion?: number | null
   validUntil?: string | null
   validityPolicyConfigured?: boolean
+  brand?: CertificateBrandSnapshot
 }
 
 async function jsonRequest<T>(url: string): Promise<T> {
