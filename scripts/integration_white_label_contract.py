@@ -72,7 +72,7 @@ conn.execute('''INSERT INTO academy_enrollments
   VALUES ('E1','T1','C1','S1','Aluno Teste','academy','completed',?,?,?,NULL)''', (now,now,now))
 conn.execute('''INSERT INTO academy_learning_cycles
   (id,tenant_id,enrollment_id,student_id,course_id,cycle_number,status,source,started_at,completed_at,created_at,updated_at)
-  VALUES ('LC1','T1','E1','S1','C1',1,'completed','academy',?,?,?,?,?)''', (now,now,now,now))
+  VALUES ('LC1','T1','E1','S1','C1',1,'completed','academy',?,?,?,?)''', (now,now,now,now))
 conn.execute("UPDATE academy_enrollments SET active_cycle_id='LC1' WHERE id='E1'")
 
 snapshot = json.dumps({
