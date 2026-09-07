@@ -67,8 +67,11 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS (
     SELECT 1 FROM academy_commercial_handoff_outbox h
     WHERE h.id=NEW.handoff_id AND h.tenant_id=NEW.tenant_id
-      AND h.status IN ('pending','failed')
-      AND (h.next_attempt_at IS NULL OR datetime(h.next_attempt_at)<=datetime(NEW.claimed_at))
+      AND (
+        (h.status='pending' AND (h.next_attempt_at IS NULL OR datetime(h.next_attempt_at)<=datetime(NEW.claimed_at)))
+        OR
+        (h.status='failed' AND h.next_attempt_at IS NOT NULL AND datetime(h.next_attempt_at)<=datetime(NEW.claimed_at))
+      )
   ) THEN RAISE(ABORT,'commercial worker claim requires due handoff in same tenant') END;
 END;
 
