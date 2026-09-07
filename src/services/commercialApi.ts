@@ -5,11 +5,14 @@ export type CommercialRuleStatus='draft'|'active'|'archived'
 export type CommercialHandoffDestination='ifarm_core'|'crm'|'partner'|'other'
 export type CommercialHandoffStatus='pending'|'processing'|'delivered'|'failed'|'cancelled'
 export type CommercialEvidenceSystem='ifarm_core'|'ifarm_store'|'ifarm_services'|'ifarm_finance'|'ifarm_insurance'|'crm'|'payment'|'contract'|'order'|'partner'|'other'
+export type GlobalCommercialContactState='available'|'suppressed'
+export type OpportunityCommercialConsentState='granted'|'revoked'
 
 export interface CommercialRecommendation{
   ruleId:string;sourceType:CommercialSourceType;sourceRef:string;interestCode:string
   offerSystem:CommercialOfferSystem;offerRef:string;offerLabel:string;offerDescription:string;ctaLabel:string
   consentPurpose:string;consentText:string;consentVersion:string;priority:number;alreadyOptedIn:boolean
+  opportunityId?:string|null;consentState?:OpportunityCommercialConsentState|null;contactAllowed:boolean
 }
 export interface CommercialRule{
   id:string;sourceType:CommercialSourceType;sourceRef:string;interestCode:string;offerSystem:CommercialOfferSystem;offerRef:string
@@ -42,6 +45,15 @@ export interface CommercialMetrics{
   byEvidenceSystem:Array<{evidenceSystem:string;currency:string;evidenceCount:number;confirmedAttributedValueCents:number}>
   accountingDisclaimer:string
 }
+export interface CommercialPrivacyEvent{action:string;source:string;reason?:string|null;recordedBy:string;createdAt:string;consentVersion?:string|null}
+export interface CommercialPrivacyOpportunity{
+  id:string;sourceType:CommercialSourceType;sourceRef:string;interestCode:string;offerLabel?:string|null;offerSystem?:CommercialOfferSystem|null;offerRef?:string|null
+  consentVersion?:string|null;consentRecordedAt:string;stage:CommercialStage;createdAt:string;globalState:GlobalCommercialContactState
+  opportunityState:OpportunityCommercialConsentState;contactAllowed:boolean;latestGlobalEvent?:CommercialPrivacyEvent|null;latestOpportunityEvent?:CommercialPrivacyEvent|null
+}
+export interface CommercialPrivacyView{
+  globalState:GlobalCommercialContactState;contactAvailable:boolean;latestGlobalEvent?:CommercialPrivacyEvent|null;opportunities:CommercialPrivacyOpportunity[]
+}
 
 async function request<T>(url:string,init?:RequestInit):Promise<T>{
   const response=await fetch(url,{...init,headers:{accept:'application/json','content-type':'application/json',...(init?.headers??{})}})
@@ -51,7 +63,7 @@ async function request<T>(url:string,init?:RequestInit):Promise<T>{
 }
 function query(params:Record<string,string|undefined>){const search=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value)search.set(key,value)});const text=search.toString();return text?`?${text}`:''}
 
-export async function loadCommercialRecommendations(sourceType:CommercialSourceType,sourceRef:string){return request<{data:CommercialRecommendation[];eligible:boolean;reason?:string;sourceInstanceRef?:string|null}>(`/api/commercial-recommendations${query({sourceType,sourceRef})}`)}
+export async function loadCommercialRecommendations(sourceType:CommercialSourceType,sourceRef:string){return request<{data:CommercialRecommendation[];eligible:boolean;reason?:string;sourceInstanceRef?:string|null;contactSuppressed:boolean}>(`/api/commercial-recommendations${query({sourceType,sourceRef})}`)}
 export async function grantCommercialOptIn(ruleId:string,consentVersion:string){return request<{data:CommercialOpportunity;idempotent?:boolean}>('/api/commercial-opt-in',{method:'POST',body:JSON.stringify({ruleId,consent:true,consentVersion})})}
 export async function loadCommercialRules(filters?:{sourceType?:CommercialSourceType;status?:CommercialRuleStatus}){return (await request<{data:CommercialRule[]}>(`/api/commercial-rules${query(filters??{})}`)).data}
 export async function createCommercialRule(input:{sourceType:CommercialSourceType;sourceRef:string;interestCode:string;offerSystem:CommercialOfferSystem;offerRef:string;offerLabel:string;offerDescription?:string;ctaLabel?:string;consentPurpose:string;consentText:string;consentVersion:string;priority?:number;status?:CommercialRuleStatus;activeFrom?:string|null;activeUntil?:string|null}){return (await request<{data:CommercialRule}>('/api/commercial-rules',{method:'POST',body:JSON.stringify(input)})).data}
@@ -65,3 +77,7 @@ export async function updateCommercialHandoff(handoffId:string,input:{action:'pr
 export async function loadCommercialConversionEvidence(opportunityId?:string){return (await request<{data:CommercialConversionEvidence[]}>(`/api/commercial-conversion-evidence${query({opportunityId})}`)).data}
 export async function recordCommercialConversionEvidence(input:{opportunityId:string;evidenceSystem:CommercialEvidenceSystem;evidenceRef:string;attributedValueCents?:number|null;currency?:string;confirmedAt?:string}){return request<{data:CommercialConversionEvidence;idempotent?:boolean}>('/api/commercial-conversion-evidence',{method:'POST',body:JSON.stringify(input)})}
 export async function loadCommercialMetrics(from?:string,to?:string){return request<CommercialMetrics>(`/api/commercial-metrics${query({from,to})}`)}
+
+export async function loadCommercialPrivacy(){return (await request<{data:CommercialPrivacyView}>('/api/commercial-privacy')).data}
+export async function updateCommercialPrivacy(input:{action:'suppress_all'|'resume'|'revoke'|'regrant';opportunityId?:string;consentVersion?:string;reason?:string}){return request<{data:CommercialPrivacyView;idempotent?:boolean}>('/api/commercial-privacy',{method:'POST',body:JSON.stringify(input)})}
+export async function updateCommercialPrivacyAdmin(input:{targetUserId:string;action:'suppress_all'|'resume'|'revoke'|'regrant';opportunityId?:string;consentVersion?:string;reason:string}){return request<{data:unknown;idempotent?:boolean}>('/api/commercial-privacy-admin',{method:'POST',body:JSON.stringify(input)})}
