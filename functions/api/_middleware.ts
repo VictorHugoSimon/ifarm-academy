@@ -13,6 +13,8 @@ const INTERNAL_HEADERS = [
   'x-ifarm-identity-source',
 ] as const
 
+const CORE_SESSION_BOOTSTRAP_PATH = '/api/core-session'
+
 function sanitizedRequest(request: Request): Request {
   const headers = new Headers(request.headers)
   for (const header of INTERNAL_HEADERS) headers.delete(header)
@@ -28,6 +30,12 @@ export const onRequest = async ({ env, request, next }: {
   if (!env.ACADEMY_CORE_API_URL) return next(request)
 
   const cleanRequest = sanitizedRequest(request)
+  const path = new URL(cleanRequest.url).pathname
+
+  // Bootstrap de sessão/tenant precisa funcionar antes de existir tenant ativo.
+  // O próprio endpoint valida o Bearer e conversa somente com o iFarm Core.
+  if (path === CORE_SESSION_BOOTSTRAP_PATH) return next(cleanRequest)
+
   const authorization = extractBearerAuthorization(cleanRequest)
 
   // Requests públicos sem Bearer seguem sem identidade. Endpoints protegidos continuarão
