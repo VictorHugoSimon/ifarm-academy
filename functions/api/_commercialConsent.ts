@@ -19,7 +19,7 @@ export function resolveCommercialConsentState(
 export async function loadGlobalCommercialContactState(db:any,tenantId:string,userId:string){
   const row=await db.prepare(`SELECT action,source,reason,recorded_by,created_at
     FROM academy_commercial_contact_preference_events
-    WHERE tenant_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 1`).bind(tenantId,userId).first()
+    WHERE tenant_id=? AND user_id=? ORDER BY seq DESC LIMIT 1`).bind(tenantId,userId).first()
   return {
     ...resolveCommercialConsentState(row?.action??null,null),
     latestEvent:row?{action:String(row.action),source:String(row.source),reason:row.reason??null,recordedBy:String(row.recorded_by),createdAt:String(row.created_at)}:null,
@@ -30,10 +30,10 @@ export async function loadOpportunityCommercialConsentState(db:any,tenantId:stri
   const [globalRow,opportunityRow]=await Promise.all([
     db.prepare(`SELECT action,source,reason,recorded_by,created_at
       FROM academy_commercial_contact_preference_events
-      WHERE tenant_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 1`).bind(tenantId,userId).first(),
+      WHERE tenant_id=? AND user_id=? ORDER BY seq DESC LIMIT 1`).bind(tenantId,userId).first(),
     db.prepare(`SELECT action,source,consent_version,reason,recorded_by,created_at
       FROM academy_commercial_opportunity_consent_events
-      WHERE tenant_id=? AND opportunity_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 1`).bind(tenantId,opportunityId,userId).first(),
+      WHERE tenant_id=? AND opportunity_id=? AND user_id=? ORDER BY seq DESC LIMIT 1`).bind(tenantId,opportunityId,userId).first(),
   ])
   return {
     ...resolveCommercialConsentState(globalRow?.action??null,opportunityRow?.action??null),
@@ -44,7 +44,7 @@ export async function loadOpportunityCommercialConsentState(db:any,tenantId:stri
 
 export async function userCommercialContactIsSuppressed(db:any,tenantId:string,userId:string):Promise<boolean>{
   const row=await db.prepare(`SELECT action FROM academy_commercial_contact_preference_events
-    WHERE tenant_id=? AND user_id=? ORDER BY created_at DESC,id DESC LIMIT 1`).bind(tenantId,userId).first()
+    WHERE tenant_id=? AND user_id=? ORDER BY seq DESC LIMIT 1`).bind(tenantId,userId).first()
   return row?.action==='suppress_all'
 }
 
