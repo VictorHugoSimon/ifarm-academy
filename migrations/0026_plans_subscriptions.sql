@@ -7,9 +7,9 @@ CREATE TABLE IF NOT EXISTS academy_plans (
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   audience_type TEXT NOT NULL DEFAULT 'individual' CHECK(audience_type IN ('individual','corporate','partner')),
+  commercial_mode TEXT NOT NULL DEFAULT 'priced' CHECK(commercial_mode IN ('free','priced','contact_sales')),
   status TEXT NOT NULL DEFAULT 'draft' CHECK(status IN ('draft','public','archived')),
   featured INTEGER NOT NULL DEFAULT 0 CHECK(featured IN (0,1)),
-  contact_sales INTEGER NOT NULL DEFAULT 0 CHECK(contact_sales IN (0,1)),
   max_users INTEGER CHECK(max_users IS NULL OR max_users > 0),
   seo_title TEXT,
   seo_description TEXT,
@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS academy_plan_prices (
   tenant_id TEXT NOT NULL,
   plan_id TEXT NOT NULL,
   billing_interval TEXT NOT NULL CHECK(billing_interval IN ('monthly','annual')),
+  price_unit TEXT NOT NULL DEFAULT 'subscription' CHECK(price_unit IN ('subscription','per_user')),
   version INTEGER NOT NULL CHECK(version > 0),
   amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
   currency TEXT NOT NULL DEFAULT 'BRL',
@@ -92,6 +93,19 @@ BEFORE INSERT ON academy_plan_prices
 BEGIN
   SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id)
     THEN RAISE(ABORT,'plan price tenant mismatch') END;
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode!='priced')
+    THEN RAISE(ABORT,'only priced plans accept price rows') END;
+  SELECT CASE WHEN NEW.valid_until IS NOT NULL AND NEW.valid_from IS NOT NULL AND datetime(NEW.valid_until)<=datetime(NEW.valid_from)
+    THEN RAISE(ABORT,'plan price validity window invalid') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_plan_price_tenant_update
+BEFORE UPDATE ON academy_plan_prices
+BEGIN
+  SELECT CASE WHEN NEW.id!=OLD.id OR NEW.tenant_id!=OLD.tenant_id OR NEW.plan_id!=OLD.plan_id OR NEW.billing_interval!=OLD.billing_interval OR NEW.version!=OLD.version
+    THEN RAISE(ABORT,'plan price identity/version is immutable') END;
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode!='priced')
+    THEN RAISE(ABORT,'only priced plans accept price rows') END;
   SELECT CASE WHEN NEW.valid_until IS NOT NULL AND NEW.valid_from IS NOT NULL AND datetime(NEW.valid_until)<=datetime(NEW.valid_from)
     THEN RAISE(ABORT,'plan price validity window invalid') END;
 END;
@@ -118,18 +132,23 @@ CREATE TRIGGER IF NOT EXISTS trg_plan_publish_update
 BEFORE UPDATE ON academy_plans
 WHEN NEW.status='public'
 BEGIN
-  SELECT CASE WHEN NEW.contact_sales=0 AND NOT EXISTS (
+  SELECT CASE WHEN NEW.commercial_mode='priced' AND NOT EXISTS (
     SELECT 1 FROM academy_plan_prices pp
     WHERE pp.tenant_id=NEW.tenant_id AND pp.plan_id=NEW.id AND pp.status='active'
       AND (pp.valid_from IS NULL OR datetime(pp.valid_from)<=datetime('now'))
       AND (pp.valid_until IS NULL OR datetime(pp.valid_until)>datetime('now'))
-  ) THEN RAISE(ABORT,'public plan requires active price or contact sales') END;
+  ) THEN RAISE(ABORT,'public priced plan requires active price') END;
+  SELECT CASE WHEN NEW.commercial_mode!='priced' AND EXISTS (
+    SELECT 1 FROM academy_plan_prices pp WHERE pp.tenant_id=NEW.tenant_id AND pp.plan_id=NEW.id AND pp.status!='retired'
+  ) THEN RAISE(ABORT,'free/contact-sales plans cannot have active or draft prices') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_plan_identity_update
 BEFORE UPDATE ON academy_plans
 BEGIN
   SELECT CASE WHEN NEW.id!=OLD.id OR NEW.tenant_id!=OLD.tenant_id THEN RAISE(ABORT,'plan identity is immutable') END;
+  SELECT CASE WHEN NEW.audience_type!='corporate' AND NEW.max_users IS NOT NULL
+    THEN RAISE(ABORT,'max_users is only valid for corporate plans') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_subscription_tenant_insert
@@ -140,6 +159,8 @@ BEGIN
   SELECT CASE WHEN NEW.price_id IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM academy_plan_prices pp WHERE pp.id=NEW.price_id AND pp.plan_id=NEW.plan_id AND pp.tenant_id=NEW.tenant_id
   ) THEN RAISE(ABORT,'subscription price mismatch') END;
+  SELECT CASE WHEN EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode='priced') AND NEW.price_id IS NULL
+    THEN RAISE(ABORT,'priced subscription requires price') END;
   SELECT CASE WHEN NEW.status='active' AND (
     NEW.provider IS NULL OR NEW.provider_subscription_id IS NULL OR NEW.activation_reference IS NULL OR NEW.started_at IS NULL OR NEW.current_period_end IS NULL
   ) THEN RAISE(ABORT,'active subscription requires verified provider activation') END;
