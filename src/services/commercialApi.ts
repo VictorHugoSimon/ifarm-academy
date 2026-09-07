@@ -48,8 +48,9 @@ export interface CommercialMetrics{
 export interface CommercialPrivacyEvent{action:string;source:string;reason?:string|null;recordedBy:string;createdAt:string;consentVersion?:string|null}
 export interface CommercialPrivacyOpportunity{
   id:string;sourceType:CommercialSourceType;sourceRef:string;interestCode:string;offerLabel?:string|null;offerSystem?:CommercialOfferSystem|null;offerRef?:string|null
-  consentVersion?:string|null;consentRecordedAt:string;stage:CommercialStage;createdAt:string;globalState:GlobalCommercialContactState
+  consentEvidenceType:string;consentVersion?:string|null;consentRecordedAt:string;stage:CommercialStage;createdAt:string;globalState:GlobalCommercialContactState
   opportunityState:OpportunityCommercialConsentState;contactAllowed:boolean;latestGlobalEvent?:CommercialPrivacyEvent|null;latestOpportunityEvent?:CommercialPrivacyEvent|null
+  regrantAvailable:boolean;regrantConsentVersion?:string|null;regrantConsentPurpose?:string|null;regrantConsentText?:string|null
 }
 export interface CommercialPrivacyView{
   globalState:GlobalCommercialContactState;contactAvailable:boolean;latestGlobalEvent?:CommercialPrivacyEvent|null;opportunities:CommercialPrivacyOpportunity[]
