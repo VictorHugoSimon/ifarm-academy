@@ -30,6 +30,7 @@ export interface PublicCourse {
 }
 
 export interface PublicCourseDetail extends PublicCourse {
+  shortDescription?: string | null
   seoTitle?: string | null
   seoDescription?: string | null
   modules: Array<{ id: string; title: string; description: string; position: number; lessonCount: number; durationMinutes: number }>
