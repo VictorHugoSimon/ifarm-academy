@@ -73,6 +73,18 @@ BEGIN
         (h.status='failed' AND h.next_attempt_at IS NOT NULL AND datetime(h.next_attempt_at)<=datetime(NEW.claimed_at))
       )
   ) THEN RAISE(ABORT,'commercial worker claim requires due handoff in same tenant') END;
+  SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM academy_commercial_handoff_outbox h
+    JOIN academy_commercial_opportunities o ON o.tenant_id=h.tenant_id AND o.id=h.opportunity_id
+    WHERE h.id=NEW.handoff_id AND h.tenant_id=NEW.tenant_id AND (
+      (SELECT action FROM academy_commercial_contact_preference_events p
+        WHERE p.tenant_id=o.tenant_id AND p.user_id=o.user_id ORDER BY p.seq DESC LIMIT 1)='suppress_all'
+      OR
+      (SELECT action FROM academy_commercial_opportunity_consent_events ce
+        WHERE ce.tenant_id=o.tenant_id AND ce.opportunity_id=o.id AND ce.user_id=o.user_id ORDER BY ce.seq DESC LIMIT 1)='revoked'
+    )
+  ) THEN RAISE(ABORT,'commercial worker claim blocked by consent state') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_commercial_claim_update_guard
