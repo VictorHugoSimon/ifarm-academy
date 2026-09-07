@@ -26,10 +26,12 @@ conn.execute('''INSERT INTO academy_commercial_opportunities (
 ) VALUES ('OP1','T1','U1','course_completion','C1','R1','irrigation','ifarm_services','SVC-1','Consultoria',
   'explicit_rule_opt_in','academy_offer_rule','Contato comercial','Autorizo contato','v1',?,'qualified',?,?)''',(now,now,now))
 
-for hid in ('H1','H2','H3'):
+# A oportunidade pode ter um handoff aberto por destino. Os três cenários usam
+# destinos distintos para respeitar a unicidade da outbox.
+for hid,destination in (('H1','ifarm_core'),('H2','crm'),('H3','partner')):
     conn.execute('''INSERT INTO academy_commercial_handoff_outbox
       (id,tenant_id,opportunity_id,destination_system,event_type,payload_version,payload_json,status,attempts,requested_by,created_at,updated_at)
-      VALUES (?, 'T1','OP1','ifarm_core','commercial.opportunity.ready',1,'{"schema":"commercial.opportunity.ready.v1"}','pending',0,'ADMIN',?,?)''',(hid,now,now))
+      VALUES (?, 'T1','OP1',?,'commercial.opportunity.ready',1,'{"schema":"commercial.opportunity.ready.v1"}','pending',0,'ADMIN',?,?)''',(hid,destination,now,now))
 
 # Claim 1 succeeds and is exclusive.
 conn.execute('''INSERT INTO academy_commercial_handoff_claims
