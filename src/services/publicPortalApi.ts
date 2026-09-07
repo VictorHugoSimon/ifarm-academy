@@ -61,6 +61,49 @@ export interface PublicEvent {
   checkoutReady: boolean
 }
 
+export interface PublicInstructor {
+  instructorId: string
+  slug: string
+  displayName: string
+  headline?: string | null
+  shortBio?: string | null
+  photoRef?: string | null
+  specialties: string[]
+  credentialSummary?: string | null
+  featured: boolean
+  publicCourseCount: number
+}
+
+export interface PublicInstructorDetail extends PublicInstructor {
+  seoTitle?: string | null
+  seoDescription?: string | null
+  courses: PublicCourse[]
+}
+
+export interface PublicLearningPath {
+  id: string
+  slug: string
+  title: string
+  shortDescription?: string | null
+  description: string
+  category?: string | null
+  coverRef?: string | null
+  featured: boolean
+  accessModel: PublicCourse['accessModel']
+  listPriceCents?: number | null
+  currency: string
+  courseCount: number
+  workloadMinutes: number
+  checkoutReady: false
+}
+
+export interface PublicLearningPathDetail extends PublicLearningPath {
+  seoTitle?: string | null
+  seoDescription?: string | null
+  courses: Array<PublicCourse & { position: number }>
+  enrollmentRequiresAuthentication: true
+}
+
 async function request<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   const payload = await response.json().catch(() => null)
@@ -87,12 +130,30 @@ export async function loadPublicEvents() {
   return request<{ brand: PublicBrand; data: PublicEvent[] }>('/api/public/events')
 }
 
-export function formatPublicPrice(course: Pick<PublicCourse,'accessModel'|'listPriceCents'|'currency'>) {
-  if (course.accessModel === 'free') return 'Gratuito'
-  if (course.accessModel === 'sponsored') return 'Patrocinado'
-  if (course.accessModel === 'included') return 'Incluído no plano'
-  if (course.accessModel === 'paid' && course.listPriceCents != null) {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: course.currency || 'BRL' }).format(course.listPriceCents / 100)
+export async function loadPublicInstructors() {
+  return request<{ brand: PublicBrand; data: PublicInstructor[] }>('/api/public/instructors')
+}
+
+export async function loadPublicInstructor(slug: string) {
+  return request<{ brand: PublicBrand; data: PublicInstructorDetail }>(`/api/public/instructor/${encodeURIComponent(slug)}`)
+}
+
+export async function loadPublicPaths() {
+  return request<{ brand: PublicBrand; data: PublicLearningPath[] }>('/api/public/paths')
+}
+
+export async function loadPublicPath(slug: string) {
+  return request<{ brand: PublicBrand; data: PublicLearningPathDetail }>(`/api/public/path/${encodeURIComponent(slug)}`)
+}
+
+export function formatAccessPrice(item: Pick<PublicCourse,'accessModel'|'listPriceCents'|'currency'>) {
+  if (item.accessModel === 'free') return 'Gratuito'
+  if (item.accessModel === 'sponsored') return 'Patrocinado'
+  if (item.accessModel === 'included') return 'Incluído no plano'
+  if (item.accessModel === 'paid' && item.listPriceCents != null) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: item.currency || 'BRL' }).format(item.listPriceCents / 100)
   }
   return 'Condições em definição'
 }
+
+export const formatPublicPrice = formatAccessPrice
