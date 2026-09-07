@@ -64,6 +64,19 @@ CREATE TABLE IF NOT EXISTS academy_plan_paths (
   FOREIGN KEY (path_id) REFERENCES academy_public_learning_paths(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS academy_plan_external_benefits (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  plan_id TEXT NOT NULL,
+  source_system TEXT NOT NULL CHECK(source_system IN ('ifarm_core','ifarm_store','ifarm_services','ifarm_finance','ifarm_insurance','partner','other')),
+  external_ref TEXT NOT NULL,
+  label TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  UNIQUE (tenant_id,plan_id,source_system,external_ref),
+  FOREIGN KEY (plan_id) REFERENCES academy_plans(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS academy_subscriptions (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
@@ -86,6 +99,7 @@ CREATE TABLE IF NOT EXISTS academy_subscriptions (
 
 CREATE INDEX IF NOT EXISTS idx_plans_public ON academy_plans(tenant_id,status,featured,name);
 CREATE INDEX IF NOT EXISTS idx_plan_prices_plan ON academy_plan_prices(tenant_id,plan_id,billing_interval,status,version DESC);
+CREATE INDEX IF NOT EXISTS idx_plan_benefits_plan ON academy_plan_external_benefits(tenant_id,plan_id,source_system,label);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON academy_subscriptions(tenant_id,user_id,status,updated_at DESC);
 
 CREATE TRIGGER IF NOT EXISTS trg_plan_insert
@@ -113,10 +127,14 @@ BEFORE UPDATE ON academy_plan_prices
 BEGIN
   SELECT CASE WHEN NEW.id!=OLD.id OR NEW.tenant_id!=OLD.tenant_id OR NEW.plan_id!=OLD.plan_id OR NEW.billing_interval!=OLD.billing_interval OR NEW.version!=OLD.version
     THEN RAISE(ABORT,'plan price identity/version is immutable') END;
+  SELECT CASE WHEN NEW.price_unit!=OLD.price_unit OR NEW.amount_cents!=OLD.amount_cents OR NEW.currency!=OLD.currency OR NEW.valid_from IS NOT OLD.valid_from OR NEW.valid_until IS NOT OLD.valid_until OR NEW.created_by!=OLD.created_by OR NEW.created_at!=OLD.created_at
+    THEN RAISE(ABORT,'plan price commercial snapshot is immutable') END;
+  SELECT CASE WHEN OLD.status='retired' AND NEW.status!='retired'
+    THEN RAISE(ABORT,'retired plan price cannot be reactivated') END;
+  SELECT CASE WHEN OLD.status='active' AND NEW.status='draft'
+    THEN RAISE(ABORT,'active plan price cannot return to draft') END;
   SELECT CASE WHEN EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode!='priced')
     THEN RAISE(ABORT,'only priced plans accept price rows') END;
-  SELECT CASE WHEN NEW.valid_until IS NOT NULL AND NEW.valid_from IS NOT NULL AND datetime(NEW.valid_until)<=datetime(NEW.valid_from)
-    THEN RAISE(ABORT,'plan price validity window invalid') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_plan_course_tenant_insert
@@ -135,6 +153,13 @@ BEGIN
     THEN RAISE(ABORT,'plan path tenant/plan mismatch') END;
   SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM academy_public_learning_paths p WHERE p.id=NEW.path_id AND p.tenant_id=NEW.tenant_id)
     THEN RAISE(ABORT,'plan path tenant/path mismatch') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_plan_benefit_tenant_insert
+BEFORE INSERT ON academy_plan_external_benefits
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id)
+    THEN RAISE(ABORT,'plan benefit tenant/plan mismatch') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_plan_publish_update
@@ -183,6 +208,9 @@ BEFORE UPDATE ON academy_subscriptions
 BEGIN
   SELECT CASE WHEN NEW.id!=OLD.id OR NEW.tenant_id!=OLD.tenant_id OR NEW.user_id!=OLD.user_id OR NEW.plan_id!=OLD.plan_id
     THEN RAISE(ABORT,'subscription identity is immutable') END;
+  SELECT CASE WHEN NEW.price_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM academy_plan_prices pp WHERE pp.id=NEW.price_id AND pp.plan_id=NEW.plan_id AND pp.tenant_id=NEW.tenant_id
+  ) THEN RAISE(ABORT,'subscription price mismatch') END;
   SELECT CASE WHEN NEW.status='active' AND (NEW.activation_reference IS NULL OR NEW.started_at IS NULL)
     THEN RAISE(ABORT,'active subscription requires explicit activation reference') END;
   SELECT CASE WHEN NEW.status='active' AND EXISTS (
