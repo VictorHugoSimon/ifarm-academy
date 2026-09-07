@@ -97,6 +97,9 @@ jobs:
       - name: Commercial handoff and conversion fixtures
         run: python3 scripts/integration_commercial_handoff_contract.py
 
+      - name: Commercial privacy and revocation fixtures
+        run: python3 scripts/integration_commercial_consent_contract.py
+
       - name: Build
         run: npm run build
 
