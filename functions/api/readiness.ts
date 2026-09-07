@@ -1,10 +1,13 @@
+import { normalizeCoreApiUrl } from './_coreIdentity'
 import { recordOperationalEvent } from './_operations'
 import { json, type Env } from './_shared'
 
 export const onRequestGet = async ({ env }: { env: Env }) => {
+  const coreConfigured = Boolean(env.ACADEMY_CORE_API_URL && normalizeCoreApiUrl(env.ACADEMY_CORE_API_URL))
   const checks = {
     database: false,
     identityBoundary: Boolean(env.ACADEMY_ADMIN_PROXY_SECRET),
+    coreIdentityConfigured: coreConfigured,
     storage: env.ACADEMY_STORAGE_REQUIRED === 'true' ? Boolean(env.ACADEMY_STORAGE) : true,
   }
 
@@ -17,6 +20,8 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     }
   }
 
+  // DEV/testes podem continuar temporariamente no proxy legado. Quando Core está configurado,
+  // o mesmo secret passa a ser somente a credencial interna middleware -> endpoints Academy.
   const ready = checks.database && checks.identityBoundary && checks.storage
   if (!ready) {
     await recordOperationalEvent(env, {
@@ -29,6 +34,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
       metadata: {
         database: checks.database,
         identityBoundary: checks.identityBoundary,
+        coreIdentityConfigured: checks.coreIdentityConfigured,
         storage: checks.storage,
       },
     })
@@ -39,6 +45,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     service: 'ifarm-academy',
     environment: env.ACADEMY_ENVIRONMENT ?? 'unknown',
     release: env.ACADEMY_RELEASE ?? 'unknown',
+    identityMode: coreConfigured ? 'core_api' : 'legacy_proxy',
     checks,
     timestamp: new Date().toISOString(),
   }, ready ? 200 : 503)
