@@ -1,7 +1,7 @@
 PRAGMA foreign_keys = ON;
 
 -- Preferência global de contato comercial da Academy. É append-only para preservar
--- o histórico: "resume" apenas remove o bloqueio global e NÃO recria consentimentos.
+-- o histórico: "resume" remove apenas o bloqueio global e não recria consentimentos.
 CREATE TABLE IF NOT EXISTS academy_commercial_contact_preference_events (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
@@ -62,8 +62,12 @@ BEGIN
     WHERE o.id=NEW.opportunity_id AND o.tenant_id=NEW.tenant_id AND o.user_id=NEW.user_id
   ) THEN RAISE(ABORT,'commercial consent event opportunity/user mismatch') END;
 
-  -- Reautorizar só é permitido para oportunidade originada de regra explícita cuja
-  -- regra permaneça ativa e com a mesma versão apresentada ao usuário.
+  SELECT CASE WHEN NEW.action='regranted' AND (
+    SELECT action FROM academy_commercial_contact_preference_events p
+    WHERE p.tenant_id=NEW.tenant_id AND p.user_id=NEW.user_id
+    ORDER BY p.created_at DESC,p.id DESC LIMIT 1
+  )='suppress_all' THEN RAISE(ABORT,'commercial regrant blocked by global suppression') END;
+
   SELECT CASE WHEN NEW.action='regranted' AND (
     NEW.consent_version IS NULL OR trim(NEW.consent_version)='' OR NOT EXISTS (
       SELECT 1
@@ -81,4 +85,58 @@ CREATE TRIGGER IF NOT EXISTS trg_commercial_opportunity_consent_immutable
 BEFORE UPDATE ON academy_commercial_opportunity_consent_events
 BEGIN
   SELECT RAISE(ABORT,'commercial consent state events are immutable');
+END;
+
+-- Um bloqueio global impede a criação de novas oportunidades comerciais, mesmo que
+-- um fluxo antigo tente contornar a API. O usuário precisa primeiro reabrir contato.
+CREATE TRIGGER IF NOT EXISTS trg_commercial_opportunity_global_suppression_guard
+BEFORE INSERT ON academy_commercial_opportunities
+WHEN (
+  SELECT action FROM academy_commercial_contact_preference_events p
+  WHERE p.tenant_id=NEW.tenant_id AND p.user_id=NEW.user_id
+  ORDER BY p.created_at DESC,p.id DESC LIMIT 1
+)='suppress_all'
+BEGIN
+  SELECT RAISE(ABORT,'commercial opportunity blocked by global suppression');
+END;
+
+-- Handoffs novos e retomadas/entregas só são permitidos quando o consentimento
+-- efetivo permanece válido. Registros já entregues continuam como evidência histórica.
+CREATE TRIGGER IF NOT EXISTS trg_commercial_handoff_consent_insert_guard
+BEFORE INSERT ON academy_commercial_handoff_outbox
+BEGIN
+  SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM academy_commercial_opportunities o
+    WHERE o.id=NEW.opportunity_id AND o.tenant_id=NEW.tenant_id
+      AND (
+        (SELECT action FROM academy_commercial_contact_preference_events p
+          WHERE p.tenant_id=o.tenant_id AND p.user_id=o.user_id
+          ORDER BY p.created_at DESC,p.id DESC LIMIT 1)='suppress_all'
+        OR
+        (SELECT action FROM academy_commercial_opportunity_consent_events ce
+          WHERE ce.tenant_id=o.tenant_id AND ce.opportunity_id=o.id AND ce.user_id=o.user_id
+          ORDER BY ce.created_at DESC,ce.id DESC LIMIT 1)='revoked'
+      )
+  ) THEN RAISE(ABORT,'commercial handoff blocked by consent state') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_commercial_handoff_consent_update_guard
+BEFORE UPDATE ON academy_commercial_handoff_outbox
+WHEN NEW.status IN ('pending','processing','delivered') AND NEW.status!=OLD.status
+BEGIN
+  SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM academy_commercial_opportunities o
+    WHERE o.id=NEW.opportunity_id AND o.tenant_id=NEW.tenant_id
+      AND (
+        (SELECT action FROM academy_commercial_contact_preference_events p
+          WHERE p.tenant_id=o.tenant_id AND p.user_id=o.user_id
+          ORDER BY p.created_at DESC,p.id DESC LIMIT 1)='suppress_all'
+        OR
+        (SELECT action FROM academy_commercial_opportunity_consent_events ce
+          WHERE ce.tenant_id=o.tenant_id AND ce.opportunity_id=o.id AND ce.user_id=o.user_id
+          ORDER BY ce.created_at DESC,ce.id DESC LIMIT 1)='revoked'
+      )
+  ) THEN RAISE(ABORT,'commercial handoff transition blocked by consent state') END;
 END;
