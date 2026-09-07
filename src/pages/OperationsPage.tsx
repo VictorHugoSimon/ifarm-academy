@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { loadAcademyCoreContext, type AcademyCoreContext } from '../services/coreContextApi'
 import {
   loadHealth,
   loadOperationsStatus,
@@ -17,14 +18,16 @@ export function OperationsPage() {
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [readiness, setReadiness] = useState<ReadinessStatus | null>(null)
   const [operations, setOperations] = useState<OperationsStatus | null>(null)
+  const [coreContext, setCoreContext] = useState<AcademyCoreContext | null>(null)
   const [message, setMessage] = useState('Carregando estado operacional...')
 
   async function refresh() {
     setMessage('Atualizando...')
-    const [healthResult, readinessResult, operationsResult] = await Promise.allSettled([
+    const [healthResult, readinessResult, operationsResult, coreResult] = await Promise.allSettled([
       loadHealth(),
       loadReadiness(),
       loadOperationsStatus(),
+      loadAcademyCoreContext(),
     ])
 
     if (healthResult.status === 'fulfilled') setHealth(healthResult.value)
@@ -32,10 +35,13 @@ export function OperationsPage() {
     else setReadiness(null)
     if (operationsResult.status === 'fulfilled') setOperations(operationsResult.value)
     else setOperations(null)
+    if (coreResult.status === 'fulfilled') setCoreContext(coreResult.value)
+    else setCoreContext(null)
 
     if (healthResult.status === 'rejected') setMessage('Health indisponível.')
     else if (readinessResult.status === 'rejected') setMessage('Aplicação viva, porém readiness não está aprovado.')
     else if (operationsResult.status === 'rejected') setMessage('Health/readiness disponíveis; painel administrativo depende da identidade confiável.')
+    else if (coreResult.status === 'rejected') setMessage('Operação disponível; integração de sessão com o iFarm Core ainda não foi confirmada neste navegador.')
     else setMessage('Estado operacional atualizado.')
   }
 
@@ -47,7 +53,7 @@ export function OperationsPage() {
         <div>
           <small>iFarm Academy · Operações</small>
           <h1>Saúde e observabilidade</h1>
-          <p>Liveness, readiness, rate limiting e eventos operacionais sem exposição de secrets ou dados pessoais.</p>
+          <p>Liveness, readiness, identidade Core, rate limiting e eventos operacionais sem exposição de secrets ou dados pessoais.</p>
         </div>
         <button className="primary" onClick={() => void refresh()}>Atualizar</button>
       </header>
@@ -57,6 +63,7 @@ export function OperationsPage() {
       <section className="operationsKpis">
         <article><span>Liveness</span><strong>{health?.status === 'ok' ? 'OK' : 'Indisponível'}</strong><small>{health?.release ?? 'release desconhecida'}</small></article>
         <article><span>Readiness</span><strong>{readiness?.status === 'ready' ? 'Pronto' : 'Não pronto'}</strong><small>{readiness?.environment ?? health?.environment ?? 'ambiente desconhecido'}</small></article>
+        <article><span>Identidade</span><strong>{coreContext?.identitySource === 'core_api' ? 'iFarm Core' : coreContext ? 'Fallback DEV' : '—'}</strong><small>{coreContext?.coreRole ? `papel ${coreContext.coreRole}` : 'sessão Core não confirmada'}</small></article>
         <article><span>Rate limiting</span><strong>{operations ? (operations.rateLimiting.enabled ? 'Ativo' : 'Desativado') : '—'}</strong><small>{operations ? `${operations.rateLimiting.activeBucketsLast5Minutes} buckets ativos em 5 min` : 'painel administrativo indisponível'}</small></article>
         <article><span>Eventos em 24h</span><strong>{operations?.last24Hours.grouped.reduce((sum, item) => sum + item.total, 0) ?? '—'}</strong><small>somente eventos operacionais relevantes</small></article>
       </section>
@@ -70,6 +77,18 @@ export function OperationsPage() {
             <div><span>Storage requerido</span><strong>{booleanLabel(readiness.checks.storage)}</strong></div>
           </div>
         ) : <p>Readiness não pôde ser confirmado neste ambiente.</p>}
+      </section>
+
+      <section className="panel operationsChecks">
+        <div className="operationsSectionTitle"><small>Integração</small><h2>Contexto iFarm Core</h2></div>
+        {coreContext ? (
+          <div className="operationsCheckGrid">
+            <div><span>Fonte</span><strong>{coreContext.identitySource === 'core_api' ? 'Core API v1' : 'Proxy legado'}</strong></div>
+            <div><span>MFA</span><strong>{coreContext.mfaSatisfied == null ? '—' : booleanLabel(coreContext.mfaSatisfied)}</strong></div>
+            <div><span>Permissões Core</span><strong>{coreContext.permissions.length}</strong></div>
+            <div><span>Papel Core</span><strong>{coreContext.coreRole ?? '—'}</strong></div>
+          </div>
+        ) : <p>A sessão Core ainda não foi confirmada. Em STAGE, configure `VITE_NEON_AUTH_URL`, `ACADEMY_CORE_API_URL` e o secret interno do bridge.</p>}
       </section>
 
       <section className="panel operationsEvents">

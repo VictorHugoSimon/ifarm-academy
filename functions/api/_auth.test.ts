@@ -67,6 +67,10 @@ describe('iFarm identity boundary', () => {
       displayName: 'Aluno Teste',
       tenantId: 'tenant-1',
       roles: ['student', 'producer'],
+      permissions: [],
+      coreRole: undefined,
+      mfaSatisfied: undefined,
+      identitySource: 'legacy_proxy',
     })
   })
 
@@ -84,6 +88,35 @@ describe('iFarm identity boundary', () => {
       userId: 'admin-1',
       tenantId: 'tenant-1',
       roles: ['academy_reviewer', 'academy_admin'],
+      permissions: [],
+      coreRole: undefined,
+      mfaSatisfied: undefined,
+      identitySource: 'legacy_proxy',
+    })
+  })
+
+  it('expõe permissões, papel Core, MFA e fonte quando o middleware validou a identidade', () => {
+    const request = new Request('https://academy.test/api/reviews', {
+      headers: {
+        'x-ifarm-proxy-secret': secret,
+        'x-ifarm-user-id': 'core-user',
+        'x-ifarm-tenant-id': 'core-tenant',
+        'x-ifarm-roles': 'core_owner,academy_admin',
+        'x-ifarm-core-permissions': 'user.read,configuration.manage,user.read',
+        'x-ifarm-core-role': 'owner',
+        'x-ifarm-mfa-satisfied': 'true',
+        'x-ifarm-identity-source': 'core_api',
+      },
+    })
+    const result = requireAdminContext({ ACADEMY_ADMIN_PROXY_SECRET: secret }, request, ['academy_admin'])
+    expect(result).toMatchObject({
+      userId: 'core-user',
+      tenantId: 'core-tenant',
+      roles: ['core_owner', 'academy_admin'],
+      permissions: ['user.read', 'configuration.manage'],
+      coreRole: 'owner',
+      mfaSatisfied: true,
+      identitySource: 'core_api',
     })
   })
 })
