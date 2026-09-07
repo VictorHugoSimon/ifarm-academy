@@ -91,6 +91,9 @@ jobs:
       - name: Plans and subscriptions fixtures
         run: python3 scripts/integration_plans_contract.py
 
+      - name: Commercial engine and consent fixtures
+        run: python3 scripts/integration_commercial_engine_contract.py
+
       - name: Build
         run: npm run build
 
