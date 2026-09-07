@@ -82,6 +82,9 @@ jobs:
       - name: Notifications fixtures
         run: python3 scripts/integration_notifications_contract.py
 
+      - name: Public portal fixtures
+        run: python3 scripts/integration_public_portal_contract.py
+
       - name: Build
         run: npm run build
 
