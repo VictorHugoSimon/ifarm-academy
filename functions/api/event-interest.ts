@@ -1,5 +1,6 @@
 import { auditStatement } from './_audit'
 import { requireTrustedContext } from './_auth'
+import { SMART_FARM_CONSENT } from './_commercial'
 import { isInterestCode } from './_smartFarm'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
@@ -9,15 +10,17 @@ export const onRequestGet=async({env,request}:{env:Env;request:Request})=>{
   const db=dbOr503(env);if(db instanceof Response)return db
   const eventId=new URL(request.url).searchParams.get('eventId')?.trim()??''
   const rows=await db.prepare(`
-    SELECT l.id,l.event_id,l.interest_code,l.stage,l.consent_source,l.consent_recorded_at,l.created_at,e.title AS event_title
-    FROM academy_event_commercial_leads l
-    JOIN academy_events e ON e.tenant_id=l.tenant_id AND e.id=l.event_id
-    WHERE l.tenant_id=? AND l.user_id=? AND (?='' OR l.event_id=?)
-    ORDER BY l.created_at DESC
+    SELECT o.id,o.source_ref AS event_id,o.source_instance_ref AS registration_id,o.interest_code,o.stage,
+      o.consent_source,o.consent_recorded_at,o.created_at,o.updated_at,e.title AS event_title
+    FROM academy_commercial_opportunities o
+    JOIN academy_events e ON e.tenant_id=o.tenant_id AND e.id=o.source_ref
+    WHERE o.tenant_id=? AND o.user_id=? AND o.source_type='event' AND (?='' OR o.source_ref=?)
+    ORDER BY o.created_at DESC
   `).bind(auth.tenantId,auth.userId,eventId,eventId).all()
   return json({data:(rows.results as any[]).map((row)=>({
-    id:row.id,eventId:row.event_id,eventTitle:row.event_title,interestCode:row.interest_code,
-    stage:row.stage,consentSource:row.consent_source,consentRecordedAt:row.consent_recorded_at,createdAt:row.created_at,
+    id:row.id,eventId:row.event_id,eventTitle:row.event_title,registrationId:row.registration_id??undefined,
+    interestCode:row.interest_code,origin:'smart_farm_experience',stage:row.stage,
+    consentSource:row.consent_source,consentRecordedAt:row.consent_recorded_at,createdAt:row.created_at,updatedAt:row.updated_at,
   }))})
 }
 
@@ -42,19 +45,23 @@ export const onRequestPost=async({env,request}:{env:Env;request:Request})=>{
   if(!['registered','attended'].includes(String(registration.status)))return json({error:'Inscrição não está habilitada para registrar interesse'},409)
   if(String(registration.event_status)==='cancelled')return json({error:'Evento cancelado'},409)
 
-  const existing=await db.prepare(`SELECT * FROM academy_event_commercial_leads WHERE tenant_id=? AND event_id=? AND registration_id=? AND interest_code=? LIMIT 1`)
-    .bind(auth.tenantId,eventId,registration.id,interestCode).first()
-  if(existing)return json({data:{id:existing.id,eventId,interestCode,stage:existing.stage,consentRecordedAt:existing.consent_recorded_at},idempotent:true})
+  const existing=await db.prepare(`SELECT * FROM academy_commercial_opportunities
+    WHERE tenant_id=? AND user_id=? AND source_type='event' AND source_ref=? AND interest_code=? LIMIT 1`)
+    .bind(auth.tenantId,auth.userId,eventId,interestCode).first()
+  if(existing)return json({data:{id:existing.id,eventId,eventTitle:registration.event_title,registrationId:existing.source_instance_ref??registration.id,interestCode,stage:existing.stage,consentSource:existing.consent_source,consentRecordedAt:existing.consent_recorded_at,createdAt:existing.created_at},idempotent:true})
 
   const id=crypto.randomUUID(),now=new Date().toISOString()
   await db.batch([
-    db.prepare(`INSERT INTO academy_event_commercial_leads (
-      id,tenant_id,event_id,registration_id,user_id,company_id,interest_code,origin,
-      consent_source,consent_recorded_at,stage,created_at,updated_at
-    ) VALUES (?,?,?,?,?,?,?,'smart_farm_experience','explicit_event_interest',?,'new',?,?)`).bind(
-      id,auth.tenantId,eventId,registration.id,auth.userId,registration.company_id??null,interestCode,now,now,now,
+    db.prepare(`INSERT INTO academy_commercial_opportunities (
+      id,tenant_id,user_id,company_id,source_type,source_ref,source_instance_ref,interest_code,
+      consent_evidence_type,consent_source,consent_purpose_snapshot,consent_text_snapshot,consent_version,
+      consent_recorded_at,stage,created_at,updated_at
+    ) VALUES (?,?,?,?,'event',?,?,?,'explicit_event_interest',?,?,?,?,?,'new',?,?)`).bind(
+      id,auth.tenantId,auth.userId,registration.company_id??null,eventId,registration.id,interestCode,
+      SMART_FARM_CONSENT.source,SMART_FARM_CONSENT.purpose,SMART_FARM_CONSENT.text,SMART_FARM_CONSENT.version,
+      now,now,now,
     ),
-    auditStatement(db,auth,{action:'smart_farm.commercial_interest_granted',resourceType:'event_commercial_lead',resourceId:id,metadata:{eventId,registrationId:registration.id,interestCode,consentSource:'explicit_event_interest'}}),
+    auditStatement(db,auth,{action:'smart_farm.commercial_interest_granted',resourceType:'commercial_opportunity',resourceId:id,metadata:{eventId,registrationId:registration.id,interestCode,consentSource:SMART_FARM_CONSENT.source,consentVersion:SMART_FARM_CONSENT.version}}),
   ])
-  return json({data:{id,eventId,eventTitle:registration.event_title,interestCode,stage:'new',consentRecordedAt:now}},201)
+  return json({data:{id,eventId,eventTitle:registration.event_title,registrationId:registration.id,interestCode,origin:'smart_farm_experience',stage:'new',consentSource:SMART_FARM_CONSENT.source,consentRecordedAt:now,createdAt:now}},201)
 }
