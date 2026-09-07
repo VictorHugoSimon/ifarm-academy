@@ -36,10 +36,10 @@ export interface CommercialMetrics{
   generatedAt:string;window:{from:string;to:string}
   funnel:{opportunitiesCreated:number;new:number;qualified:number;contacted:number;opportunity:number;converted:number;discarded:number;explicitRuleOptIns:number;smartFarmInterests:number;cohortConversionRate:number|null;conversionsConfirmedInPeriod:number}
   handoffs:{open:number;pending:number;failed:number;deliveredInPeriod:number}
-  attributedCommercialValue:{evidenceCount:number;confirmedAttributedValueCents:number;currencyNote:string}
+  attributedCommercialValue:{evidenceCount:number;totalsByCurrency:Array<{currency:string;evidenceCount:number;confirmedAttributedValueCents:number}>}
   bySource:Array<{sourceType:string;opportunities:number;converted:number;conversionRate:number|null}>
   byOfferSystem:Array<{offerSystem:string;opportunities:number;converted:number;conversionRate:number|null}>
-  byEvidenceSystem:Array<{evidenceSystem:string;evidenceCount:number;confirmedAttributedValueCents:number}>
+  byEvidenceSystem:Array<{evidenceSystem:string;currency:string;evidenceCount:number;confirmedAttributedValueCents:number}>
   accountingDisclaimer:string
 }
 
