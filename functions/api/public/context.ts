@@ -13,6 +13,8 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     routes: {
       home: '/',
       catalog: '/courses',
+      paths: '/paths',
+      instructors: '/instructors',
       events: '/events',
       login: '/app',
       certificateValidation: '/certificates/validate',
