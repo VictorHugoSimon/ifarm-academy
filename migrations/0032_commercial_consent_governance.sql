@@ -1,9 +1,8 @@
 PRAGMA foreign_keys = ON;
 
--- Preferência global de contato comercial da Academy. É append-only para preservar
--- o histórico: "resume" remove apenas o bloqueio global e não recria consentimentos.
 CREATE TABLE IF NOT EXISTS academy_commercial_contact_preference_events (
-  id TEXT PRIMARY KEY,
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
   tenant_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
   action TEXT NOT NULL CHECK(action IN ('suppress_all','resume')),
@@ -14,10 +13,11 @@ CREATE TABLE IF NOT EXISTS academy_commercial_contact_preference_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_commercial_contact_pref_latest
-ON academy_commercial_contact_preference_events(tenant_id,user_id,created_at DESC,id DESC);
+ON academy_commercial_contact_preference_events(tenant_id,user_id,seq DESC);
 
 CREATE TABLE IF NOT EXISTS academy_commercial_opportunity_consent_events (
-  id TEXT PRIMARY KEY,
+  seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
   tenant_id TEXT NOT NULL,
   opportunity_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
@@ -31,9 +31,9 @@ CREATE TABLE IF NOT EXISTS academy_commercial_opportunity_consent_events (
 );
 
 CREATE INDEX IF NOT EXISTS idx_commercial_opportunity_consent_latest
-ON academy_commercial_opportunity_consent_events(tenant_id,opportunity_id,created_at DESC,id DESC);
+ON academy_commercial_opportunity_consent_events(tenant_id,opportunity_id,seq DESC);
 CREATE INDEX IF NOT EXISTS idx_commercial_opportunity_consent_user
-ON academy_commercial_opportunity_consent_events(tenant_id,user_id,created_at DESC);
+ON academy_commercial_opportunity_consent_events(tenant_id,user_id,seq DESC);
 
 CREATE TRIGGER IF NOT EXISTS trg_commercial_contact_pref_insert_guard
 BEFORE INSERT ON academy_commercial_contact_preference_events
@@ -62,12 +62,9 @@ BEGIN
   SELECT CASE WHEN NEW.action='regranted' AND (
     SELECT action FROM academy_commercial_contact_preference_events p
     WHERE p.tenant_id=NEW.tenant_id AND p.user_id=NEW.user_id
-    ORDER BY p.created_at DESC,p.id DESC LIMIT 1
+    ORDER BY p.seq DESC LIMIT 1
   )='suppress_all' THEN RAISE(ABORT,'commercial regrant blocked by global suppression') END;
 
-  -- Reautorizações são aceitas somente para consentimentos explícitos cuja versão
-  -- possa ser verificada. Regras comerciais usam a versão ativa atual; interesses
-  -- Smart Farm reutilizam o snapshot explícito originalmente apresentado.
   SELECT CASE WHEN NEW.action='regranted' AND (
     NEW.consent_version IS NULL OR trim(NEW.consent_version)='' OR NOT EXISTS (
       SELECT 1
@@ -95,7 +92,7 @@ BEFORE INSERT ON academy_commercial_opportunities
 WHEN (
   SELECT action FROM academy_commercial_contact_preference_events p
   WHERE p.tenant_id=NEW.tenant_id AND p.user_id=NEW.user_id
-  ORDER BY p.created_at DESC,p.id DESC LIMIT 1
+  ORDER BY p.seq DESC LIMIT 1
 )='suppress_all'
 BEGIN
   SELECT RAISE(ABORT,'commercial opportunity blocked by global suppression');
@@ -109,11 +106,11 @@ BEGIN
     WHERE o.id=NEW.opportunity_id AND o.tenant_id=NEW.tenant_id AND (
       (SELECT action FROM academy_commercial_contact_preference_events p
         WHERE p.tenant_id=o.tenant_id AND p.user_id=o.user_id
-        ORDER BY p.created_at DESC,p.id DESC LIMIT 1)='suppress_all'
+        ORDER BY p.seq DESC LIMIT 1)='suppress_all'
       OR
       (SELECT action FROM academy_commercial_opportunity_consent_events ce
         WHERE ce.tenant_id=o.tenant_id AND ce.opportunity_id=o.id AND ce.user_id=o.user_id
-        ORDER BY ce.created_at DESC,ce.id DESC LIMIT 1)='revoked'
+        ORDER BY ce.seq DESC LIMIT 1)='revoked'
     )
   ) THEN RAISE(ABORT,'commercial handoff blocked by consent state') END;
 END;
@@ -127,11 +124,11 @@ BEGIN
     WHERE o.id=NEW.opportunity_id AND o.tenant_id=NEW.tenant_id AND (
       (SELECT action FROM academy_commercial_contact_preference_events p
         WHERE p.tenant_id=o.tenant_id AND p.user_id=o.user_id
-        ORDER BY p.created_at DESC,p.id DESC LIMIT 1)='suppress_all'
+        ORDER BY p.seq DESC LIMIT 1)='suppress_all'
       OR
       (SELECT action FROM academy_commercial_opportunity_consent_events ce
         WHERE ce.tenant_id=o.tenant_id AND ce.opportunity_id=o.id AND ce.user_id=o.user_id
-        ORDER BY ce.created_at DESC,ce.id DESC LIMIT 1)='revoked'
+        ORDER BY ce.seq DESC LIMIT 1)='revoked'
     )
   ) THEN RAISE(ABORT,'commercial handoff transition blocked by consent state') END;
 END;
