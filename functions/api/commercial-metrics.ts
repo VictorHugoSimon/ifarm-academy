@@ -31,10 +31,14 @@ export const onRequestGet=async({env,request}:{env:Env;request:Request})=>{
     SUM(CASE WHEN status='delivered' AND delivered_at BETWEEN ? AND ? THEN 1 ELSE 0 END) AS delivered_period
     FROM academy_commercial_handoff_outbox WHERE tenant_id=?`).bind(window.from,window.to,auth.tenantId).first()
 
-  const evidence=await db.prepare(`SELECT COUNT(*) AS evidence_count,
-    SUM(CASE WHEN attributed_value_cents IS NOT NULL THEN attributed_value_cents ELSE 0 END) AS attributed_value_cents
+  const evidence=await db.prepare(`SELECT COUNT(*) AS evidence_count
     FROM academy_commercial_conversion_evidence WHERE tenant_id=? AND confirmed_at BETWEEN ? AND ?`)
     .bind(auth.tenantId,window.from,window.to).first()
+
+  const valueByCurrency=await db.prepare(`SELECT currency,COUNT(*) AS evidence_count,
+    SUM(CASE WHEN attributed_value_cents IS NOT NULL THEN attributed_value_cents ELSE 0 END) AS attributed_value_cents
+    FROM academy_commercial_conversion_evidence WHERE tenant_id=? AND confirmed_at BETWEEN ? AND ?
+    GROUP BY currency ORDER BY currency`).bind(auth.tenantId,window.from,window.to).all()
 
   const bySource=await db.prepare(`SELECT source_type,COUNT(*) AS total,
     SUM(CASE WHEN stage='converted' THEN 1 ELSE 0 END) AS converted
@@ -46,10 +50,10 @@ export const onRequestGet=async({env,request}:{env:Env;request:Request})=>{
     FROM academy_commercial_opportunities WHERE tenant_id=? AND created_at BETWEEN ? AND ?
     GROUP BY COALESCE(offer_system,'legacy_or_unclassified') ORDER BY total DESC,offer_system`).bind(auth.tenantId,window.from,window.to).all()
 
-  const byEvidenceSystem=await db.prepare(`SELECT evidence_system,COUNT(*) AS evidence_count,
+  const byEvidenceSystem=await db.prepare(`SELECT evidence_system,currency,COUNT(*) AS evidence_count,
     SUM(CASE WHEN attributed_value_cents IS NOT NULL THEN attributed_value_cents ELSE 0 END) AS attributed_value_cents
     FROM academy_commercial_conversion_evidence WHERE tenant_id=? AND confirmed_at BETWEEN ? AND ?
-    GROUP BY evidence_system ORDER BY attributed_value_cents DESC,evidence_system`).bind(auth.tenantId,window.from,window.to).all()
+    GROUP BY evidence_system,currency ORDER BY evidence_system,currency`).bind(auth.tenantId,window.from,window.to).all()
 
   const cohortTotal=numberValue(cohort?.total),cohortConverted=numberValue(cohort?.converted)
   return json({
@@ -62,11 +66,12 @@ export const onRequestGet=async({env,request}:{env:Env;request:Request})=>{
     },
     handoffs:{open:numberValue(handoffs?.open_count),pending:numberValue(handoffs?.pending),failed:numberValue(handoffs?.failed),deliveredInPeriod:numberValue(handoffs?.delivered_period)},
     attributedCommercialValue:{
-      evidenceCount:numberValue(evidence?.evidence_count),confirmedAttributedValueCents:numberValue(evidence?.attributed_value_cents),currencyNote:'Valores podem ter moedas distintas; não tratar a soma como receita contábil quando houver múltiplas moedas.',
+      evidenceCount:numberValue(evidence?.evidence_count),
+      totalsByCurrency:(valueByCurrency.results as any[]).map(row=>({currency:String(row.currency),evidenceCount:numberValue(row.evidence_count),confirmedAttributedValueCents:numberValue(row.attributed_value_cents)})),
     },
     bySource:(bySource.results as any[]).map(row=>({sourceType:String(row.source_type),opportunities:numberValue(row.total),converted:numberValue(row.converted),conversionRate:percent(numberValue(row.converted),numberValue(row.total))})),
     byOfferSystem:(byOffer.results as any[]).map(row=>({offerSystem:String(row.offer_system),opportunities:numberValue(row.total),converted:numberValue(row.converted),conversionRate:percent(numberValue(row.converted),numberValue(row.total))})),
-    byEvidenceSystem:(byEvidenceSystem.results as any[]).map(row=>({evidenceSystem:String(row.evidence_system),evidenceCount:numberValue(row.evidence_count),confirmedAttributedValueCents:numberValue(row.attributed_value_cents)})),
-    accountingDisclaimer:'Valor atribuído confirmado é evidência comercial referenciada, não substitui faturamento, recebimento ou contabilidade oficial.',
+    byEvidenceSystem:(byEvidenceSystem.results as any[]).map(row=>({evidenceSystem:String(row.evidence_system),currency:String(row.currency),evidenceCount:numberValue(row.evidence_count),confirmedAttributedValueCents:numberValue(row.attributed_value_cents)})),
+    accountingDisclaimer:'Valor atribuído confirmado é evidência comercial referenciada e segregada por moeda; não substitui faturamento, recebimento ou contabilidade oficial.',
   })
 }
