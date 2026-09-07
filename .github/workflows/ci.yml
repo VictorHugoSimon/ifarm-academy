@@ -85,6 +85,9 @@ jobs:
       - name: Public portal fixtures
         run: python3 scripts/integration_public_portal_contract.py
 
+      - name: Public paths and instructors fixtures
+        run: python3 scripts/integration_public_discovery_contract.py
+
       - name: Build
         run: npm run build
 
