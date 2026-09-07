@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { AcademyWorkspacePage } from './pages/AcademyWorkspacePage'
 import { PublicCertificateValidationPage } from './pages/PublicCertificateValidationPage'
 import { PublicDiscoveryPage } from './pages/PublicDiscoveryPage'
+import { PublicPlansPage } from './pages/PublicPlansPage'
 import { PublicPortalPage } from './pages/PublicPortalPage'
 import { SmartFarmCheckinPage } from './pages/SmartFarmCheckinPage'
 import './styles/runtime.css'
@@ -14,6 +15,7 @@ const pathname = window.location.pathname
 const publicCertificateRoute = pathname === '/certificates/validate'
 const smartFarmCheckinRoute = pathname === '/smart-farm/checkin'
 const workspaceRoute = pathname === '/app' || pathname.startsWith('/app/')
+const publicPlansRoute = pathname === '/plans' || pathname.startsWith('/plans/')
 const publicDiscoveryRoute = pathname === '/paths' || pathname.startsWith('/paths/') || pathname === '/instructors' || pathname.startsWith('/instructors/')
 
 createRoot(document.getElementById('root')!).render(
@@ -24,8 +26,10 @@ createRoot(document.getElementById('root')!).render(
         ? <SmartFarmCheckinPage />
         : workspaceRoute
           ? <AcademyWorkspacePage />
-          : publicDiscoveryRoute
-            ? <PublicDiscoveryPage />
-            : <PublicPortalPage />}
+          : publicPlansRoute
+            ? <PublicPlansPage />
+            : publicDiscoveryRoute
+              ? <PublicDiscoveryPage />
+              : <PublicPortalPage />}
   </React.StrictMode>,
 )

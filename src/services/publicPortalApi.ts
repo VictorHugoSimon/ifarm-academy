@@ -104,6 +104,36 @@ export interface PublicLearningPathDetail extends PublicLearningPath {
   enrollmentRequiresAuthentication: true
 }
 
+export interface PublicPlanPrice {
+  id: string
+  billingInterval: 'monthly'|'annual'
+  priceUnit: 'subscription'|'per_user'
+  version: number
+  amountCents: number
+  currency: string
+  validFrom?: string | null
+  validUntil?: string | null
+}
+
+export interface PublicPlan {
+  id: string
+  slug: string
+  name: string
+  description: string
+  audienceType: 'individual'|'corporate'|'partner'
+  commercialMode: 'free'|'priced'|'contact_sales'
+  featured: boolean
+  maxUsers?: number | null
+  seoTitle?: string | null
+  seoDescription?: string | null
+  prices: PublicPlanPrice[]
+  courses: Array<{ id: string; slug: string; title: string; category?: string | null; coverRef?: string | null }>
+  paths: Array<{ id: string; slug: string; title: string; shortDescription?: string | null; coverRef?: string | null }>
+  externalBenefits: Array<{ sourceSystem: string; label: string; description: string }>
+  checkoutReady: false
+  subscriptionCreationReady: false
+}
+
 async function request<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   const payload = await response.json().catch(() => null)
@@ -144,6 +174,20 @@ export async function loadPublicPaths() {
 
 export async function loadPublicPath(slug: string) {
   return request<{ brand: PublicBrand; data: PublicLearningPathDetail }>(`/api/public/path/${encodeURIComponent(slug)}`)
+}
+
+export async function loadPublicPlans() {
+  return request<{ brand: PublicBrand; data: PublicPlan[] }>('/api/public/plans')
+}
+
+export async function loadPublicPlan(slug: string) {
+  return request<{ brand: PublicBrand; data: PublicPlan }>(`/api/public/plan/${encodeURIComponent(slug)}`)
+}
+
+export function formatPlanPrice(price: PublicPlanPrice) {
+  const amount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: price.currency || 'BRL' }).format(price.amountCents / 100)
+  const interval = price.billingInterval === 'annual' ? 'ano' : 'mês'
+  return `${amount} / ${interval}${price.priceUnit === 'per_user' ? ' / usuário' : ''}`
 }
 
 export function formatAccessPrice(item: Pick<PublicCourse,'accessModel'|'listPriceCents'|'currency'>) {
