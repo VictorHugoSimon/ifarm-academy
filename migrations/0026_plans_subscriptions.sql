@@ -88,6 +88,15 @@ CREATE INDEX IF NOT EXISTS idx_plans_public ON academy_plans(tenant_id,status,fe
 CREATE INDEX IF NOT EXISTS idx_plan_prices_plan ON academy_plan_prices(tenant_id,plan_id,billing_interval,status,version DESC);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON academy_subscriptions(tenant_id,user_id,status,updated_at DESC);
 
+CREATE TRIGGER IF NOT EXISTS trg_plan_insert
+BEFORE INSERT ON academy_plans
+BEGIN
+  SELECT CASE WHEN NEW.audience_type!='corporate' AND NEW.max_users IS NOT NULL
+    THEN RAISE(ABORT,'max_users is only valid for corporate plans') END;
+  SELECT CASE WHEN NEW.status='public' AND NEW.commercial_mode='priced'
+    THEN RAISE(ABORT,'priced plan must be created as draft before price activation') END;
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_plan_price_tenant_insert
 BEFORE INSERT ON academy_plan_prices
 BEGIN
@@ -161,9 +170,12 @@ BEGIN
   ) THEN RAISE(ABORT,'subscription price mismatch') END;
   SELECT CASE WHEN EXISTS (SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode='priced') AND NEW.price_id IS NULL
     THEN RAISE(ABORT,'priced subscription requires price') END;
-  SELECT CASE WHEN NEW.status='active' AND (
-    NEW.provider IS NULL OR NEW.provider_subscription_id IS NULL OR NEW.activation_reference IS NULL OR NEW.started_at IS NULL OR NEW.current_period_end IS NULL
-  ) THEN RAISE(ABORT,'active subscription requires verified provider activation') END;
+  SELECT CASE WHEN NEW.status='active' AND (NEW.activation_reference IS NULL OR NEW.started_at IS NULL)
+    THEN RAISE(ABORT,'active subscription requires explicit activation reference') END;
+  SELECT CASE WHEN NEW.status='active' AND EXISTS (
+    SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode='priced'
+  ) AND (NEW.provider IS NULL OR NEW.provider_subscription_id IS NULL OR NEW.current_period_end IS NULL)
+    THEN RAISE(ABORT,'active priced subscription requires verified provider activation') END;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_subscription_activation_update
@@ -171,7 +183,10 @@ BEFORE UPDATE ON academy_subscriptions
 BEGIN
   SELECT CASE WHEN NEW.id!=OLD.id OR NEW.tenant_id!=OLD.tenant_id OR NEW.user_id!=OLD.user_id OR NEW.plan_id!=OLD.plan_id
     THEN RAISE(ABORT,'subscription identity is immutable') END;
-  SELECT CASE WHEN NEW.status='active' AND (
-    NEW.provider IS NULL OR NEW.provider_subscription_id IS NULL OR NEW.activation_reference IS NULL OR NEW.started_at IS NULL OR NEW.current_period_end IS NULL
-  ) THEN RAISE(ABORT,'active subscription requires verified provider activation') END;
+  SELECT CASE WHEN NEW.status='active' AND (NEW.activation_reference IS NULL OR NEW.started_at IS NULL)
+    THEN RAISE(ABORT,'active subscription requires explicit activation reference') END;
+  SELECT CASE WHEN NEW.status='active' AND EXISTS (
+    SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode='priced'
+  ) AND (NEW.provider IS NULL OR NEW.provider_subscription_id IS NULL OR NEW.current_period_end IS NULL)
+    THEN RAISE(ABORT,'active priced subscription requires verified provider activation') END;
 END;
