@@ -11,10 +11,12 @@ export interface ReadinessStatus {
   status: 'ready' | 'not_ready'
   environment: string
   release: string
+  identityMode?: 'core_api' | 'legacy_proxy'
   timestamp: string
   checks: {
     database: boolean
     identityBoundary: boolean
+    coreIdentityConfigured?: boolean
     storage: boolean
   }
 }
