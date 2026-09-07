@@ -6,6 +6,7 @@ import { AssessmentReviewPage } from './AssessmentReviewPage'
 import { CertificateEligibilityPage } from './CertificateEligibilityPage'
 import { CertificateValidityGovernancePage } from './CertificateValidityGovernancePage'
 import { CommercialEnginePage } from './CommercialEnginePage'
+import { CommercialPrivacyPage } from './CommercialPrivacyPage'
 import { CoursePublicationPage } from './CoursePublicationPage'
 import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import { EnterpriseTrainingPage } from './EnterpriseTrainingPage'
@@ -26,7 +27,7 @@ import { loadWhiteLabelContext, type WhiteLabelBrand } from '../services/whiteLa
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'plans' | 'commercial' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'gamification' | 'notifications' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'plans' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'gamification' | 'notifications' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -36,6 +37,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['public-discovery', 'Trilhas & Instrutores Públicos'],
   ['plans', 'Planos & Ofertas'],
   ['commercial', 'Motor Comercial'],
+  ['commercial-privacy', 'Privacidade comercial'],
   ['catalog', 'Catálogo e matrículas'],
   ['enterprise', 'Área empresarial'],
   ['enterprise-paths', 'Trilhas empresariais'],
@@ -71,7 +73,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>{runtimeBrand?.academyName || 'iFarm Academy'} · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, trilhas, instrutores, planos, motor comercial consentido, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, trilhas, instrutores, planos, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -88,6 +90,7 @@ export function AcademyWorkspacePage() {
       {view === 'public-discovery' && <PublicDiscoveryGovernancePage />}
       {view === 'plans' && <PlansGovernancePage />}
       {view === 'commercial' && <CommercialEnginePage />}
+      {view === 'commercial-privacy' && <CommercialPrivacyPage />}
       {view === 'catalog' && <EnrollmentCatalogPage />}
       {view === 'enterprise' && <EnterpriseTrainingPage />}
       {view === 'enterprise-paths' && <EnterprisePathsPage />}
