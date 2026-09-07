@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { normalizePublicTextList, publicSlug, safePublicAssetRef } from './_publicDiscovery'
 
 describe('public discovery validation', () => {
-  it('normalizes public slugs', () => {
-    expect(publicSlug('Agricultura Digital 2026')).toBe('agricultura-digital-2026')
+  it('accepts canonical slugs and rejects raw text', () => {
+    expect(publicSlug('agricultura-digital-2026')).toBe('agricultura-digital-2026')
+    expect(publicSlug('Agricultura Digital 2026')).toBeNull()
     expect(publicSlug('---')).toBeNull()
   })
 
