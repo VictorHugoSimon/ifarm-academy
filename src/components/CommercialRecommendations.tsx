@@ -10,20 +10,21 @@ const systemLabels:Record<string,string>={
 export function CommercialRecommendations({sourceType,sourceRef,title='Próximos passos para aplicar este conhecimento'}:{sourceType:CommercialSourceType;sourceRef:string;title?:string}){
   const [items,setItems]=useState<CommercialRecommendation[]>([])
   const [eligible,setEligible]=useState(false)
+  const [contactSuppressed,setContactSuppressed]=useState(false)
   const [message,setMessage]=useState('')
   const [busyRule,setBusyRule]=useState('')
 
   async function load(){
     try{
       const result=await loadCommercialRecommendations(sourceType,sourceRef)
-      setEligible(result.eligible)
-      setItems(result.data)
-    }catch{setEligible(false);setItems([])}
+      setEligible(result.eligible);setItems(result.data);setContactSuppressed(result.contactSuppressed)
+    }catch{setEligible(false);setItems([]);setContactSuppressed(false)}
   }
 
   useEffect(()=>{void load()},[sourceType,sourceRef])
 
   async function optIn(item:CommercialRecommendation){
+    if(contactSuppressed||item.consentState==='revoked')return
     const confirmed=window.confirm(`${item.consentText}\n\nFinalidade: ${item.consentPurpose}\nVersão: ${item.consentVersion}\n\nDeseja autorizar?`)
     if(!confirmed)return
     setBusyRule(item.ruleId);setMessage('Registrando sua autorização...')
@@ -43,22 +44,26 @@ export function CommercialRecommendations({sourceType,sourceRef,title='Próximos
       <h2>{title}</h2>
       <p>Estas sugestões são relacionadas ao contexto acadêmico concluído. Nenhuma oportunidade comercial é criada sem sua confirmação explícita.</p>
     </header>
+    {contactSuppressed&&<div className="commercialPrivacyWarning">Você bloqueou contatos comerciais. As ofertas permanecem visíveis apenas como referência; nenhum novo interesse pode ser registrado até você reativar essa preferência.</div>}
     {message&&<div className="commercialNotice">{message}</div>}
     <div className="commercialRecommendationGrid">
-      {items.map(item=><article key={item.ruleId} className="commercialOfferCard">
-        <span>{systemLabels[item.offerSystem]??item.offerSystem}</span>
-        <h3>{item.offerLabel}</h3>
-        <p>{item.offerDescription||'Solução disponível no ecossistema iFarm.'}</p>
-        <details>
-          <summary>Como meu consentimento será usado</summary>
-          <p><strong>Finalidade:</strong> {item.consentPurpose}</p>
-          <p>{item.consentText}</p>
-          <small>Versão do consentimento: {item.consentVersion}</small>
-        </details>
-        <button className="primary" disabled={item.alreadyOptedIn||busyRule===item.ruleId} onClick={()=>void optIn(item)}>
-          {item.alreadyOptedIn?'Interesse já registrado':busyRule===item.ruleId?'Registrando...':item.ctaLabel}
-        </button>
-      </article>)}
+      {items.map(item=>{
+        const revoked=item.consentState==='revoked'
+        const disabled=contactSuppressed||revoked||item.alreadyOptedIn||busyRule===item.ruleId
+        const label=contactSuppressed?'Contato comercial bloqueado':revoked?'Consentimento revogado':item.alreadyOptedIn?'Interesse já registrado':busyRule===item.ruleId?'Registrando...':item.ctaLabel
+        return <article key={item.ruleId} className="commercialOfferCard">
+          <span>{systemLabels[item.offerSystem]??item.offerSystem}</span>
+          <h3>{item.offerLabel}</h3>
+          <p>{item.offerDescription||'Solução disponível no ecossistema iFarm.'}</p>
+          <details>
+            <summary>Como meu consentimento será usado</summary>
+            <p><strong>Finalidade:</strong> {item.consentPurpose}</p>
+            <p>{item.consentText}</p>
+            <small>Versão do consentimento: {item.consentVersion}</small>
+          </details>
+          <button className="primary" disabled={disabled} onClick={()=>void optIn(item)}>{label}</button>
+        </article>
+      })}
     </div>
   </section>
 }
