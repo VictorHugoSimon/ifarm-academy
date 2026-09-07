@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { evaluateCertificateEligibility } from '../application/assessmentService'
+import { CommercialRecommendations } from '../components/CommercialRecommendations'
 import {
   certificateStatusLabel,
   certificateValidationUrl,
@@ -40,6 +41,15 @@ export function CertificateEligibilityPage() {
   }
 
   if (serverMode === 'server') {
+    const commercialCourses = Array.from(new Map(
+      serverCertificates
+        .filter((certificate): certificate is CertificateRecord & { courseId: string } => {
+          const effectiveStatus = certificate.effectiveStatus ?? (certificate.status === 'revoked' ? 'revoked' : 'valid')
+          return Boolean(certificate.courseId) && effectiveStatus === 'valid'
+        })
+        .map((certificate) => [certificate.courseId, certificate] as const),
+    ).values())
+
     return (
       <div className="certificatePage">
         <div className="pageHeader">
@@ -89,6 +99,15 @@ export function CertificateEligibilityPage() {
             })}
           </div>
         </section>
+
+        {commercialCourses.map((certificate) => (
+          <CommercialRecommendations
+            key={certificate.courseId}
+            sourceType="certificate_issued"
+            sourceRef={certificate.courseId}
+            title={`Soluções relacionadas a ${certificate.courseTitle}`}
+          />
+        ))}
       </div>
     )
   }
