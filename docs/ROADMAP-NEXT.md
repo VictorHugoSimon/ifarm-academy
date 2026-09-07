@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.40
+## Concluído até v0.41
 - Identidade fail-closed preparada para integração com o iFarm Core.
 - Isolamento tenant-aware em APIs administrativas e estudantis.
 - Course Builder, Quiz Builder, publicação, catálogo, matrícula, Student Player, progresso e conclusão server-side.
@@ -20,7 +20,12 @@
 - Portal público tenant-aware com home, catálogo, detalhe de curso, eventos, `/app` separado e tenant resolvido somente por host aprovado.
 - Trilhas públicas comerciais em `/paths` e `/paths/{slug}`, separadas das trilhas empresariais obrigatórias.
 - Perfis públicos de instrutor em `/instructors` e `/instructors/{slug}`, vinculados ao cadastro existente e sem exposição automática de evidências/registro profissional.
-- Trilhas e perfis públicos respeitando o catálogo White Label e somente cursos publicamente elegíveis.
+- Planos públicos em `/plans` e `/plans/{slug}` para público individual, corporativo e parceiro.
+- Modos comerciais `free`, `priced` e `contact_sales` sem valores presumidos.
+- Preços mensal/anual versionados e imutáveis, por assinatura ou por usuário.
+- Benefícios de cursos, trilhas e referências ao ecossistema iFarm sem duplicar catálogo externo.
+- `Subscription` preparada no banco; escrita/ativação permanece bloqueada até integração homologada.
+- Trilhas, perfis e planos públicos respeitando o catálogo White Label e somente conteúdo publicamente elegível.
 - CI com migrations, testes unitários e fixtures D1-compatible específicas por módulo.
 
 ## Próximas prioridades
@@ -28,12 +33,12 @@
 2. Provisionamento exclusivo de Cloudflare Pages + D1 + storage para STAGE.
 3. Integração definitiva com sessão/RBAC e barramento de notificações do iFarm Core, incluindo escopo confiável de `company_admin`.
 4. Adapter do provedor de streaming escolhido após decisão de infraestrutura.
-5. Checkout e Mercado Pago, incluindo cursos, trilhas, eventos pagos e marketplace, após identity boundary e validações comerciais/fiscais.
-6. Marketplace financeiro: split, repasses, extrato e conciliação após definição comercial e fiscal.
-7. IA Tutor com RAG autorizado após base de conteúdo, permissões e infraestrutura homologadas.
-8. Portal avançado: planos/assinaturas, recomendações, busca enriquecida, páginas de parceiros e bundles.
-9. Alertas externos, backup/restore real e SLOs após STAGE; RPO/RTO permanecem TBD.
-10. Gamificação, white label e automações comerciais avançadas após estabilização do MVP.
+5. Checkout e Mercado Pago, incluindo cursos, trilhas, planos, eventos pagos e marketplace, após identity boundary e validações comerciais/fiscais.
+6. Assinaturas reais, entitlement e cancelamento somente após eventos confiáveis de pagamento/contrato.
+7. Marketplace financeiro: split, repasses, extrato e conciliação após definição comercial e fiscal.
+8. IA Tutor com RAG autorizado após base de conteúdo, permissões e infraestrutura homologadas.
+9. Portal avançado: busca enriquecida, recomendações, páginas de parceiros e bundles comerciais consentidos.
+10. Alertas externos, backup/restore real, SLOs, gamificação e automações avançadas após STAGE.
 
 ## Governança
 - `develop` é a linha de integração; `main` e produção permanecem fora das mudanças até homologação do STAGE.
@@ -52,6 +57,11 @@
 - Conteúdo premium, gabarito, materiais protegidos e links privados não podem ser expostos pelo contrato público.
 - Perfil público de instrutor é opt-in e não publica automaticamente evidências, número de conselho, registro profissional ou decisão de responsabilidade técnica.
 - Trilhas públicas não herdam obrigatoriedade, renovação ou periodicidade das trilhas empresariais.
+- Plano `priced` público exige preço ativo explicitamente cadastrado; preços históricos nunca são sobrescritos.
+- Plano `free` ou `contact_sales` não recebe preço financeiro artificial.
+- Benefícios externos são referências; produto, estoque, contrato, crédito, seguro e elegibilidade continuam nos sistemas responsáveis.
+- Assinatura paga ativa exige confirmação real do provedor; assinatura gratuita/contratual exige referência explícita de ativação.
+- A v0.41 não possui endpoint de criação/ativação de assinatura.
 - Logs não devem registrar PII, secrets, respostas de prova ou corpo de requisição.
 - Rate limiting pode falhar aberto para disponibilidade; identity boundary permanece fail-closed.
 - RPO, RTO, CNAE, regras fiscais e percentual de comissão do marketplace permanecem TBD.
