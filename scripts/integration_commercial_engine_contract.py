@@ -64,8 +64,8 @@ assert count == 0
 try:
     conn.execute('''INSERT INTO academy_commercial_offer_rules (
       id,tenant_id,source_type,source_ref,interest_code,offer_system,offer_ref,offer_label,consent_purpose,consent_text,consent_version,status,created_by,created_at,updated_at
-    ) VALUES ('BADRULE','T1','course_completion','C2','iot','ifarm_store','SKU-X','Oferta inválida','Contato','Autorizo contato','v1','draft','ADMIN',?,?,?)''',
-      (now, now, now))
+    ) VALUES ('BADRULE','T1','course_completion','C2','iot','ifarm_store','SKU-X','Oferta inválida','Contato','Autorizo contato','v1','draft','ADMIN',?,?)''',
+      (now, now))
     raise AssertionError('cross-tenant commercial source was accepted')
 except sqlite3.IntegrityError:
     pass
