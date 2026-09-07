@@ -1,5 +1,6 @@
 import { auditStatement } from './_audit'
 import { requireAdminContext } from './_auth'
+import { opportunityCommercialContactIsAllowed } from './_commercialConsent'
 import { buildCommercialHandoffPayload,isCommercialHandoffDestination } from './_commercialHandoff'
 import { bodyJson,dbOr503,json,type Env } from './_shared'
 
@@ -34,6 +35,9 @@ export const onRequestPost=async({env,request}:{env:Env;request:Request})=>{
   const opportunity=await db.prepare('SELECT * FROM academy_commercial_opportunities WHERE tenant_id=? AND id=? LIMIT 1').bind(auth.tenantId,opportunityId).first()
   if(!opportunity)return json({error:'Oportunidade não encontrada neste tenant'},404)
   if(!['qualified','contacted','opportunity','converted'].includes(String(opportunity.stage)))return json({error:'Qualifique a oportunidade antes de preparar o handoff'},409)
+  if(!await opportunityCommercialContactIsAllowed(db,auth.tenantId,String(opportunity.user_id),opportunityId)){
+    return json({error:'Handoff bloqueado pela preferência de privacidade/consentimento do usuário'},409)
+  }
 
   const existing=await db.prepare(`SELECT * FROM academy_commercial_handoff_outbox WHERE tenant_id=? AND opportunity_id=? AND destination_system=? AND event_type='commercial.opportunity.ready' AND status IN ('pending','processing','failed') LIMIT 1`)
     .bind(auth.tenantId,opportunityId,destinationSystem).first()
@@ -60,6 +64,14 @@ export const onRequestPut=async({env,request}:{env:Env;request:Request})=>{
   const current=await db.prepare('SELECT * FROM academy_commercial_handoff_outbox WHERE tenant_id=? AND id=? LIMIT 1').bind(auth.tenantId,handoffId).first()
   if(!current)return json({error:'Handoff não encontrado neste tenant'},404)
   if(['delivered','cancelled'].includes(String(current.status)))return json({error:'Handoff já está em estado terminal'},409)
+
+  if(['processing','delivered','retry'].includes(action)){
+    const opportunity=await db.prepare('SELECT user_id FROM academy_commercial_opportunities WHERE tenant_id=? AND id=? LIMIT 1')
+      .bind(auth.tenantId,current.opportunity_id).first()
+    if(!opportunity||!await opportunityCommercialContactIsAllowed(db,auth.tenantId,String(opportunity.user_id),String(current.opportunity_id))){
+      return json({error:'Transição bloqueada pela preferência de privacidade/consentimento do usuário'},409)
+    }
+  }
 
   const now=new Date().toISOString()
   let status=String(current.status),attempts=Number(current.attempts),deliveryReference=current.delivery_reference??null,lastErrorCode=current.last_error_code??null,deliveredAt=current.delivered_at??null,nextAttemptAt=current.next_attempt_at??null

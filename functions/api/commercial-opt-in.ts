@@ -1,6 +1,7 @@
 import { auditStatement } from './_audit'
 import { requireTrustedContext } from './_auth'
 import { verifyCommercialSourceEligibility } from './_commercial'
+import { loadOpportunityCommercialConsentState, userCommercialContactIsSuppressed } from './_commercialConsent'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 function mapOpportunity(row:any){
@@ -17,6 +18,9 @@ export const onRequestPost=async({env,request}:{env:Env;request:Request})=>{
   if(auth instanceof Response)return auth
   const db=dbOr503(env)
   if(db instanceof Response)return db
+  if(await userCommercialContactIsSuppressed(db,auth.tenantId,auth.userId)){
+    return json({error:'Contato comercial está bloqueado nas suas preferências. Reative-o antes de registrar novo interesse.'},409)
+  }
 
   let body:Record<string,unknown>
   try{body=await bodyJson(request)}catch{return json({error:'JSON inválido'},400)}
@@ -43,7 +47,11 @@ export const onRequestPost=async({env,request}:{env:Env;request:Request})=>{
   const existing=await db.prepare(`SELECT * FROM academy_commercial_opportunities
     WHERE tenant_id=? AND user_id=? AND source_type=? AND source_ref=? AND rule_id=? LIMIT 1`)
     .bind(auth.tenantId,auth.userId,sourceType,sourceRef,ruleId).first()
-  if(existing)return json({data:mapOpportunity(existing),idempotent:true})
+  if(existing){
+    const state=await loadOpportunityCommercialConsentState(db,auth.tenantId,auth.userId,String(existing.id))
+    if(state.opportunityState==='revoked')return json({error:'Este interesse foi revogado. Use as preferências de privacidade comercial para reautorizar.'},409)
+    return json({data:mapOpportunity(existing),idempotent:true})
+  }
 
   const id=crypto.randomUUID()
   try{
