@@ -17,5 +17,15 @@ compatibility_date = "2026-09-01"
 # binding = "ACADEMY_STORAGE"
 # bucket_name = "ifarm-academy-stage-materials"
 
-# ACADEMY_ADMIN_PROXY_SECRET deve ser cadastrado como secret no ambiente,
-# nunca neste arquivo e nunca com prefixo VITE_.
+[vars]
+ACADEMY_ENVIRONMENT = "stage"
+ACADEMY_RELEASE = "0.47.0"
+ACADEMY_CORE_REQUEST_TIMEOUT_MS = "4000"
+# Definir no ambiente STAGE com a URL real da API do iFarm Core STAGE:
+# ACADEMY_CORE_API_URL = "https://<core-stage-api>"
+
+# Secrets devem ser cadastrados no ambiente, nunca neste arquivo:
+# - ACADEMY_ADMIN_PROXY_SECRET
+#
+# Variável pública de build do frontend, configurar no Pages STAGE:
+# - VITE_NEON_AUTH_URL = URL Neon Auth do mesmo ambiente do iFarm Core

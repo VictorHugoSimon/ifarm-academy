@@ -35,6 +35,37 @@ describe('Academy Core identity middleware', () => {
     expect(await result.json()).toEqual({ userId: null, tenantId: null, roles: null, proxy: null })
   })
 
+  it('permite bootstrap de sessão antes do tenant ativo sem confiar em headers do browser', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await onRequest({
+      env: { ACADEMY_CORE_API_URL: 'https://core.ifarm.test', ACADEMY_ADMIN_PROXY_SECRET: 'internal-only' },
+      request: new Request('https://academy.test/api/core-session', {
+        headers: {
+          authorization: 'Bearer valid-core-token',
+          'x-ifarm-user-id': 'forged-user',
+          'x-ifarm-tenant-id': 'forged-tenant',
+          'x-ifarm-proxy-secret': 'forged-secret',
+        },
+      }),
+      next: async (cleaned) => response({
+        authorization: cleaned?.headers.get('authorization') ?? null,
+        userId: cleaned?.headers.get('x-ifarm-user-id') ?? null,
+        tenantId: cleaned?.headers.get('x-ifarm-tenant-id') ?? null,
+        proxy: cleaned?.headers.get('x-ifarm-proxy-secret') ?? null,
+      }),
+    })
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(await result.json()).toEqual({
+      authorization: 'Bearer valid-core-token',
+      userId: null,
+      tenantId: null,
+      proxy: null,
+    })
+  })
+
   it('substitui headers forjados pelo contexto validado no Core', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)

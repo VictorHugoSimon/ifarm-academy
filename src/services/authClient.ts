@@ -3,7 +3,9 @@ import { BetterAuthReactAdapter } from '@neondatabase/auth/react/adapters'
 
 const authUrl = import.meta.env.VITE_NEON_AUTH_URL as string | undefined
 
-if (!authUrl) {
+export const authConfigured = Boolean(authUrl)
+
+if (!authConfigured) {
   console.warn('VITE_NEON_AUTH_URL não configurada. A sessão integrada ao iFarm Core ficará indisponível neste ambiente.')
 }
 
