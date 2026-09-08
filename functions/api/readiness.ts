@@ -2,6 +2,27 @@ import { normalizeCoreApiUrl } from './_coreIdentity'
 import { recordOperationalEvent } from './_operations'
 import { json, type Env } from './_shared'
 
+const CORE_REQUIRED_ENVIRONMENTS = new Set(['stage', 'staging', 'prod', 'production'])
+
+export function coreIdentityRequired(environment?: string): boolean {
+  return CORE_REQUIRED_ENVIRONMENTS.has((environment ?? '').trim().toLowerCase())
+}
+
+export function evaluateReadiness(input: {
+  environment?: string
+  database: boolean
+  identityBoundary: boolean
+  coreIdentityConfigured: boolean
+  storage: boolean
+}) {
+  const coreRequired = coreIdentityRequired(input.environment)
+  const ready = input.database
+    && input.identityBoundary
+    && input.storage
+    && (!coreRequired || input.coreIdentityConfigured)
+  return { ready, coreRequired }
+}
+
 export const onRequestGet = async ({ env }: { env: Env }) => {
   const coreConfigured = Boolean(env.ACADEMY_CORE_API_URL && normalizeCoreApiUrl(env.ACADEMY_CORE_API_URL))
   const checks = {
@@ -20,9 +41,14 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     }
   }
 
-  // DEV/testes podem continuar temporariamente no proxy legado. Quando Core está configurado,
-  // o mesmo secret passa a ser somente a credencial interna middleware -> endpoints Academy.
-  const ready = checks.database && checks.identityBoundary && checks.storage
+  // DEV/testes podem continuar temporariamente no proxy legado. STAGE/PRODUCTION
+  // exigem identidade real confirmada pelo iFarm Core para declarar readiness.
+  const evaluation = evaluateReadiness({
+    environment: env.ACADEMY_ENVIRONMENT,
+    ...checks,
+  })
+  const ready = evaluation.ready
+
   if (!ready) {
     await recordOperationalEvent(env, {
       eventType: 'readiness_failed',
@@ -35,6 +61,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
         database: checks.database,
         identityBoundary: checks.identityBoundary,
         coreIdentityConfigured: checks.coreIdentityConfigured,
+        coreIdentityRequired: evaluation.coreRequired,
         storage: checks.storage,
       },
     })
@@ -46,6 +73,7 @@ export const onRequestGet = async ({ env }: { env: Env }) => {
     environment: env.ACADEMY_ENVIRONMENT ?? 'unknown',
     release: env.ACADEMY_RELEASE ?? 'unknown',
     identityMode: coreConfigured ? 'core_api' : 'legacy_proxy',
+    coreIdentityRequired: evaluation.coreRequired,
     checks,
     timestamp: new Date().toISOString(),
   }, ready ? 200 : 503)
