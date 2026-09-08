@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export interface HealthStatus {
   service: string
   status: string
@@ -45,7 +47,7 @@ export interface OperationsStatus {
   }
 }
 
-async function request<T>(url: string): Promise<T> {
+async function publicRequest<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
@@ -56,13 +58,13 @@ async function request<T>(url: string): Promise<T> {
 }
 
 export function loadHealth() {
-  return request<HealthStatus>('/api/health')
+  return publicRequest<HealthStatus>('/api/health')
 }
 
 export function loadReadiness() {
-  return request<ReadinessStatus>('/api/readiness')
+  return publicRequest<ReadinessStatus>('/api/readiness')
 }
 
 export function loadOperationsStatus() {
-  return request<OperationsStatus>('/api/operations-status')
+  return authenticatedJson<OperationsStatus>('/api/operations-status', { headers: { accept: 'application/json' } })
 }

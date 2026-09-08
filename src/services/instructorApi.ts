@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type QualificationType = 'degree' | 'technical' | 'council_registration' | 'certification' | 'experience' | 'other'
 export type VerificationStatus = 'declared' | 'verified' | 'rejected' | 'expired'
 export type CourseInstructorRole = 'author' | 'instructor' | 'reviewer' | 'technical_responsible'
@@ -67,13 +69,11 @@ export interface CourseInstructorRoleRecord {
   updatedAt: string
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
   })
-  if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
-  return response.json() as Promise<T>
 }
 
 export async function loadInstructors(): Promise<InstructorRecord[]> {

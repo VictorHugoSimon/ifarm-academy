@@ -28,7 +28,7 @@ createRoot(document.getElementById('root')!).render(
     {publicCertificateRoute
       ? <PublicCertificateValidationPage />
       : smartFarmCheckinRoute
-        ? <SmartFarmCheckinPage />
+        ? <AcademySessionGate><SmartFarmCheckinPage /></AcademySessionGate>
         : workspaceRoute
           ? <AcademySessionGate><AcademyWorkspacePage /></AcademySessionGate>
           : publicPlansRoute

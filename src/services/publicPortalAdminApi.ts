@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export interface PublicCourseProfileAdmin {
   courseId: string
   courseTitle: string
@@ -58,11 +60,11 @@ export interface PublicLearningPathAdmin {
   updatedAt: string
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error ?? `Academy API ${response.status}`)
-  return payload as T
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+  })
 }
 
 export async function loadPublicCourseProfiles(): Promise<PublicCourseProfileAdmin[]> {

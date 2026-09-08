@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type SmartFarmActivityType='field_activity'|'demonstration'|'lecture'|'visit'|'break'|'other'
 export type SmartFarmInterestCode='irrigation'|'iot'|'weather_station'|'lorawan'|'drones'|'precision_agriculture'|'insurance'|'credit'|'technical_services'|'ifarm_store'|'other'
 export type SmartFarmTokenPurpose='checkin'|'checkout'|'station'
@@ -27,14 +29,8 @@ export interface SmartFarmLead{
   interestCode:SmartFarmInterestCode;origin?:string;consentSource:string;consentRecordedAt:string;stage:SmartFarmLeadStage;createdAt:string;updatedAt?:string
 }
 
-async function request<T>(url:string,init?:RequestInit):Promise<T>{
-  const response=await fetch(url,{...init,headers:{'content-type':'application/json',...(init?.headers??{})}})
-  const payload=await response.json().catch(()=>null)
-  if(!response.ok){
-    const message=payload&&typeof payload.error==='string'?payload.error:`Academy API ${response.status}`
-    throw new Error(message)
-  }
-  return payload as T
+function request<T>(url:string,init?:RequestInit):Promise<T>{
+  return authenticatedJson<T>(url,{...init,headers:{'content-type':'application/json',...(init?.headers??{})}})
 }
 
 export async function loadSmartFarmAgenda(eventId:string):Promise<SmartFarmAgendaItem[]>{

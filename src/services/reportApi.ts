@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export interface ReportWindow {
   from: string
   to: string
@@ -136,10 +138,8 @@ export interface CertificateValidityReportResponse {
   disclaimer: string
 }
 
-async function request<T>(url: string): Promise<T> {
-  const response = await fetch(url, { headers: { accept: 'application/json' } })
-  if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
-  return response.json() as Promise<T>
+function request<T>(url: string): Promise<T> {
+  return authenticatedJson<T>(url, { headers: { accept: 'application/json' } })
 }
 
 export async function loadAcademyReports(from?: string, to?: string): Promise<AcademyReportResponse> {

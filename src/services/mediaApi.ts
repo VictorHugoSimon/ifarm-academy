@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export interface MediaPlayback {
   courseId: string
   lessonId: string
@@ -8,11 +10,9 @@ export interface MediaPlayback {
 }
 
 export async function loadMediaPlayback(courseId: string, lessonId: string): Promise<MediaPlayback> {
-  const response = await fetch(
+  const result = await authenticatedJson<{ data: MediaPlayback }>(
     `/api/media?courseId=${encodeURIComponent(courseId)}&lessonId=${encodeURIComponent(lessonId)}`,
     { headers: { accept: 'application/json' } },
   )
-  if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
-  const result = await response.json() as { data: MediaPlayback }
   return result.data
 }

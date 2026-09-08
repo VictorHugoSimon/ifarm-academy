@@ -6,6 +6,7 @@ import type {
   ProgressRepository,
   AttemptRepository,
 } from './persistenceContracts'
+import { authenticatedFetch } from './authenticatedFetch'
 
 export interface ApiPersistenceOptions {
   baseUrl?: string
@@ -23,7 +24,7 @@ async function request<T>(fetcher: typeof fetch, url: string, init?: RequestInit
 
 export function createApiPersistence(options: ApiPersistenceOptions = {}): AcademyPersistence {
   const baseUrl = (options.baseUrl ?? '/api').replace(/\/$/, '')
-  const fetcher = options.fetcher ?? fetch
+  const fetcher = options.fetcher ?? authenticatedFetch
 
   const progress: ProgressRepository = {
     list: (studentId, courseId) => request(fetcher, `${baseUrl}/progress?studentId=${encodeURIComponent(studentId)}&courseId=${encodeURIComponent(courseId)}`),
