@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type ValidityMode = 'indefinite' | 'fixed_months'
 
 export interface CertificateValidityPolicy {
@@ -21,14 +23,11 @@ export interface CertificateValidityCourse {
   policy: CertificateValidityPolicy | null
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
   })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error ?? `Academy API ${response.status}`)
-  return payload as T
 }
 
 export async function loadCertificateValidityPolicies(): Promise<CertificateValidityCourse[]> {
