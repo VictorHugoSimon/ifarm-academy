@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import { AcademySessionProvider } from '../session/AcademySessionContext'
 import { authClient, authConfigured } from '../services/authClient'
 import { activateCoreTenant, loadCoreSession, type CoreSessionSnapshot } from '../services/coreSessionApi'
+import { ACADEMY_SESSION_EXPIRED_EVENT } from '../services/sessionEvents'
 
 export function AcademySessionGate({ children }: { children: ReactNode }) {
   const session = authClient.useSession()
@@ -29,6 +31,16 @@ export function AcademySessionGate({ children }: { children: ReactNode }) {
     if (session.data) void refreshContext()
     else setSnapshot(null)
   }, [session.data])
+
+  useEffect(() => {
+    const handleExpiredSession = () => {
+      setSnapshot(null)
+      setError('Sua sessão iFarm expirou. Entre novamente para continuar.')
+      void authClient.signOut().catch(() => undefined)
+    }
+    window.addEventListener(ACADEMY_SESSION_EXPIRED_EVENT, handleExpiredSession)
+    return () => window.removeEventListener(ACADEMY_SESSION_EXPIRED_EVENT, handleExpiredSession)
+  }, [])
 
   const activeTenants = useMemo(
     () => snapshot?.tenants.filter((tenant) => tenant.active) ?? [],
@@ -149,34 +161,36 @@ export function AcademySessionGate({ children }: { children: ReactNode }) {
   const userLabel = session.data.user.name || session.data.user.email
 
   return (
-    <div className="academyAuthenticatedShell">
-      <header className="academySessionBar">
-        <div>
-          <span className="academySessionLabel">Empresa</span>
-          <select
-            aria-label="Empresa ativa"
-            value={snapshot.tenantId}
-            disabled={switchingTenant}
-            onChange={(event) => void changeTenant(event.target.value)}
-          >
-            {activeTenants.map((tenant) => (
-              <option key={tenant.id} value={tenant.id}>{tenant.tradeName || tenant.legalName}</option>
-            ))}
-          </select>
-        </div>
-        <div className="academySessionIdentity">
+    <AcademySessionProvider snapshot={snapshot}>
+      <div className="academyAuthenticatedShell">
+        <header className="academySessionBar">
           <div>
-            <strong>{userLabel}</strong>
-            <span>{snapshot.ifarmAdmin ? 'Administrador iFarm' : snapshot.role || currentTenant?.role || 'Usuário iFarm'}</span>
+            <span className="academySessionLabel">Empresa</span>
+            <select
+              aria-label="Empresa ativa"
+              value={snapshot.tenantId}
+              disabled={switchingTenant}
+              onChange={(event) => void changeTenant(event.target.value)}
+            >
+              {activeTenants.map((tenant) => (
+                <option key={tenant.id} value={tenant.id}>{tenant.tradeName || tenant.legalName}</option>
+              ))}
+            </select>
           </div>
-          <button onClick={() => void signOut()}>Sair</button>
-        </div>
-      </header>
-      {snapshot.mfa.required && !snapshot.mfa.satisfied && (
-        <div className="academyMfaWarning">Este perfil exige MFA. Operações privilegiadas permanecem bloqueadas até o segundo fator ser validado no iFarm Core.</div>
-      )}
-      {error && <div className="academyInlineError">{error}</div>}
-      {children}
-    </div>
+          <div className="academySessionIdentity">
+            <div>
+              <strong>{userLabel}</strong>
+              <span>{snapshot.ifarmAdmin ? 'Administrador iFarm' : snapshot.role || currentTenant?.role || 'Usuário iFarm'}</span>
+            </div>
+            <button onClick={() => void signOut()}>Sair</button>
+          </div>
+        </header>
+        {snapshot.mfa.required && !snapshot.mfa.satisfied && (
+          <div className="academyMfaWarning">Este perfil exige MFA. Operações privilegiadas permanecem bloqueadas até o segundo fator ser validado no iFarm Core.</div>
+        )}
+        {error && <div className="academyInlineError">{error}</div>}
+        {children}
+      </div>
+    </AcademySessionProvider>
   )
 }
