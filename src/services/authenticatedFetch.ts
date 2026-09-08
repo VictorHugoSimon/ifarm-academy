@@ -1,4 +1,5 @@
 import { authClient } from './authClient'
+import { isSessionExpiredStatus, notifySessionExpired } from './sessionEvents'
 
 const nativeFetch = globalThis.fetch.bind(globalThis)
 
@@ -13,11 +14,16 @@ export async function authenticatedFetch(input: RequestInfo | URL, init: Request
   const headers = requestHeaders(input, init)
   if (!headers.has('authorization')) {
     const token = await authClient.getJWTToken()
-    if (!token) throw new Error('Sessão iFarm ausente ou expirada. Entre novamente para continuar.')
+    if (!token) {
+      notifySessionExpired()
+      throw new Error('Sessão iFarm ausente ou expirada. Entre novamente para continuar.')
+    }
     headers.set('authorization', `Bearer ${token}`)
   }
   if (!headers.has('accept')) headers.set('accept', 'application/json')
-  return nativeFetch(input, { ...init, headers })
+  const response = await nativeFetch(input, { ...init, headers })
+  if (isSessionExpiredStatus(response.status)) notifySessionExpired()
+  return response
 }
 
 export async function authenticatedJson<T>(input: RequestInfo | URL, init: RequestInit = {}): Promise<T> {
