@@ -4,11 +4,17 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEPLOY = (ROOT / "scripts/deploy_cloudflare_pages.py").read_text(encoding="utf-8")
+DEPLOY_PATH = ROOT / "scripts/deploy_cloudflare_pages.py"
+DEPLOY = DEPLOY_PATH.read_text(encoding="utf-8")
 STAGE = (ROOT / ".github/workflows/deploy-stage.yml").read_text(encoding="utf-8")
 PROD = (ROOT / ".github/workflows/deploy-production.yml").read_text(encoding="utf-8")
 
 errors: list[str] = []
+
+try:
+    compile(DEPLOY, str(DEPLOY_PATH), "exec")
+except SyntaxError as error:
+    errors.append(f"provisioner_syntax:{error.msg}")
 
 required_resources = [
     "ifarm-academy-stage",
@@ -45,6 +51,8 @@ if "ifarm-core-api-stage.victorhugoteixeirasimon6.workers.dev" not in DEPLOY:
     errors.append("stage_core_contract_missing")
 if "ifarm-core-api.victorhugoteixeirasimon6.workers.dev" not in DEPLOY:
     errors.append("production_core_contract_missing")
+if "@4.35.0" not in DEPLOY:
+    errors.append("wrangler_not_pinned")
 
 if errors:
     print("Deployment contract: FAIL")
@@ -53,6 +61,7 @@ if errors:
     raise SystemExit(1)
 
 print("Deployment contract: PASS")
+print("- provisioner syntax OK")
 print("- stage/prod isolated")
 print("- D1/R2 exclusive namespace enforced")
 print("- Core endpoints explicit")
