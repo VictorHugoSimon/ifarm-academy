@@ -15,25 +15,44 @@ function request(roles: string, companyId?: string) {
 }
 
 describe('enterprise authorization', () => {
-  it('allows Academy admin to manage every company in its tenant', () => {
+  it('allows Academy admin to manage every company in its tenant and create companies', () => {
     const result = requireEnterpriseContext(env, request('academy_admin'))
     expect(result).not.toBeInstanceOf(Response)
     if (result instanceof Response) return
     expect(result.canManageAllCompanies).toBe(true)
+    expect(result.canCreateCompanies).toBe(true)
     expect(requireCompanyScope(result, 'COMPANY-X')).toBeNull()
+    expect(requireGlobalEnterpriseAdmin(result)).toBeNull()
   })
 
-  it('requires trusted company scope for company admin', () => {
+  it('allows permission-derived enterprise manager across current tenant without global administration', () => {
+    const result = requireEnterpriseContext(env, request('core_manager,academy_manager,academy_enterprise_manager'))
+    expect(result).not.toBeInstanceOf(Response)
+    if (result instanceof Response) return
+    expect(result.canManageAllCompanies).toBe(true)
+    expect(result.canCreateCompanies).toBe(false)
+    expect(requireCompanyScope(result, 'COMPANY-X')).toBeNull()
+    expect(requireGlobalEnterpriseAdmin(result)).toBeInstanceOf(Response)
+  })
+
+  it('does not treat academy_manager role name alone as enterprise authorization', () => {
+    const result = requireEnterpriseContext(env, request('core_manager,academy_manager'))
+    expect(result).toBeInstanceOf(Response)
+    expect((result as Response).status).toBe(403)
+  })
+
+  it('requires trusted company scope for legacy company admin', () => {
     const result = requireEnterpriseContext(env, request('company_admin'))
     expect(result).toBeInstanceOf(Response)
     expect((result as Response).status).toBe(403)
   })
 
-  it('allows company admin only inside delegated company', () => {
+  it('allows legacy company admin only inside delegated company', () => {
     const result = requireEnterpriseContext(env, request('company_admin', 'COMPANY-A'))
     expect(result).not.toBeInstanceOf(Response)
     if (result instanceof Response) return
     expect(result.canManageAllCompanies).toBe(false)
+    expect(result.canCreateCompanies).toBe(false)
     expect(requireCompanyScope(result, 'COMPANY-A')).toBeNull()
     expect(requireCompanyScope(result, 'COMPANY-B')).toBeInstanceOf(Response)
   })
