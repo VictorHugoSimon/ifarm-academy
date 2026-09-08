@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   coreRequestTimeoutMs,
+  hasEnterpriseManagementCapability,
   mapCoreRoleToAcademyRoles,
   normalizeCoreApiUrl,
   resolveCoreIdentity,
@@ -44,6 +45,46 @@ describe('iFarm Core identity adapter', () => {
       .toEqual(['core_manager', 'ifarm_admin', 'academy_admin', 'academy_manager'])
     expect(mapCoreRoleToAcademyRoles({ coreRole: 'manager', isIfarmAdmin: true, mfaSatisfied: false }))
       .toEqual(['core_manager', 'academy_manager'])
+  })
+
+  it('projeta gestão empresarial por permissões verificadas sem promover manager a academy_admin', () => {
+    const permissions = ['organization.manage', 'user.manage', 'notification.manage']
+    expect(hasEnterpriseManagementCapability({ permissions, mfaSatisfied: true })).toBe(true)
+    expect(mapCoreRoleToAcademyRoles({
+      coreRole: 'manager',
+      isIfarmAdmin: false,
+      mfaSatisfied: true,
+      permissions,
+    })).toEqual(['core_manager', 'academy_manager', 'academy_enterprise_manager'])
+  })
+
+  it('não concede gestão empresarial por nome de role quando falta capability Core', () => {
+    expect(mapCoreRoleToAcademyRoles({
+      coreRole: 'manager',
+      isIfarmAdmin: false,
+      mfaSatisfied: true,
+      permissions: ['organization.manage', 'user.manage'],
+    })).toEqual(['core_manager', 'academy_manager'])
+  })
+
+  it('mantém perfis técnico, operador, financeiro e parceiro fora da gestão empresarial por padrão', () => {
+    const matrix: Array<[string, string[]]> = [
+      ['technical', ['organization.read', 'property.manage', 'notification.read']],
+      ['operator', ['organization.read', 'task.manage', 'notification.read']],
+      ['finance', ['user.read', 'contract.manage', 'notification.read']],
+      ['partner', ['tenant.read', 'notification.read']],
+    ]
+    for (const [coreRole, permissions] of matrix) {
+      expect(mapCoreRoleToAcademyRoles({ coreRole, isIfarmAdmin: false, mfaSatisfied: true, permissions }))
+        .not.toContain('academy_enterprise_manager')
+    }
+  })
+
+  it('bloqueia capability empresarial quando MFA não está satisfeito', () => {
+    expect(hasEnterpriseManagementCapability({
+      permissions: ['organization.manage', 'user.manage', 'notification.manage'],
+      mfaSatisfied: false,
+    })).toBe(false)
   })
 
   it('resolve identidade e permissões usando os endpoints reais do contrato Core v1', async () => {
