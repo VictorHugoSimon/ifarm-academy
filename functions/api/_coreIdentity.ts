@@ -21,6 +21,7 @@ export interface CoreIdentityContext {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const BEARER_RE = /^Bearer\s+([^\s]+)$/i
 const PRIVILEGED_CORE_ROLES = new Set(['owner', 'tenant_admin'])
+const ENTERPRISE_MANAGEMENT_PERMISSIONS = ['organization.manage', 'user.manage', 'notification.manage'] as const
 const CORE_ROLE_MAP: Record<string, string> = {
   manager: 'academy_manager',
   technical: 'academy_technical',
@@ -71,10 +72,23 @@ export function extractBearerAuthorization(request: Request): string | null {
   return BEARER_RE.test(header) ? header : null
 }
 
+export function hasCorePermissions(permissions: string[], required: readonly string[]): boolean {
+  const granted = new Set(permissions.map((value) => value.trim().toLowerCase()).filter(Boolean))
+  return required.every((permission) => granted.has(permission.toLowerCase()))
+}
+
+export function hasEnterpriseManagementCapability(input: {
+  permissions: string[]
+  mfaSatisfied: boolean
+}): boolean {
+  return input.mfaSatisfied && hasCorePermissions(input.permissions, ENTERPRISE_MANAGEMENT_PERMISSIONS)
+}
+
 export function mapCoreRoleToAcademyRoles(input: {
   coreRole?: string
   isIfarmAdmin: boolean
   mfaSatisfied: boolean
+  permissions?: string[]
 }): string[] {
   const coreRole = input.coreRole?.trim().toLowerCase()
   const roles = new Set<string>()
@@ -90,6 +104,14 @@ export function mapCoreRoleToAcademyRoles(input: {
   }
 
   if (coreRole && CORE_ROLE_MAP[coreRole]) roles.add(CORE_ROLE_MAP[coreRole])
+
+  if (hasEnterpriseManagementCapability({
+    permissions: input.permissions ?? [],
+    mfaSatisfied: input.mfaSatisfied,
+  })) {
+    roles.add('academy_enterprise_manager')
+  }
+
   return [...roles]
 }
 
@@ -164,7 +186,7 @@ export async function resolveCoreIdentity(
   const permissions = Array.isArray(permissionPayload.permissions)
     ? [...new Set(permissionPayload.permissions.filter((value): value is string => typeof value === 'string' && value.length > 0 && value.length <= 120))]
     : []
-  const roles = mapCoreRoleToAcademyRoles({ coreRole, isIfarmAdmin, mfaSatisfied })
+  const roles = mapCoreRoleToAcademyRoles({ coreRole, isIfarmAdmin, mfaSatisfied, permissions })
 
   return {
     userId,
