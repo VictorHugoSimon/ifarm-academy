@@ -1,3 +1,4 @@
+import { authenticatedFetch as fetch } from './authenticatedFetch'
 import { loadCatalog, type CatalogCourse } from './enrollmentApi'
 
 export interface CompanyRecord {
