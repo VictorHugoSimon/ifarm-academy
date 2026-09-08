@@ -19,6 +19,7 @@ export interface CoreSessionSnapshot {
     verified: boolean
     satisfied: boolean
   }
+  permissions: string[]
   tenants: CoreTenantMembership[]
 }
 
