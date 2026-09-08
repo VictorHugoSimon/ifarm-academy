@@ -1,4 +1,5 @@
 import { loadCatalog, type CatalogCourse } from './enrollmentApi'
+import { authenticatedJson } from './authenticatedFetch'
 
 export interface CompanyRecord {
   id: string
@@ -183,16 +184,11 @@ export interface CompanyLearningCycleRecord {
   renewalMonths?: number | null
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
   })
-  if (!response.ok) {
-    const text = await response.text()
-    throw new Error(`Academy API ${response.status}: ${text}`)
-  }
-  return response.json() as Promise<T>
 }
 
 export async function loadCompanies(): Promise<CompanyRecord[]> {
