@@ -47,6 +47,9 @@ jobs:
       - name: Enterprise integration fixtures
         run: python3 scripts/integration_enterprise_contract.py
 
+      - name: Core membership directory fixtures
+        run: python3 scripts/integration_core_directory_contract.py
+
       - name: Enterprise paths and renewals fixtures
         run: python3 scripts/integration_enterprise_paths_contract.py
 
