@@ -33,26 +33,20 @@ jobs:
       - name: Install
         run: npm install --no-audit --no-fund
 
-      - name: Bootstrap generated lockfile on v0.53 branch
+      - name: Normalize package metadata to v0.53
         if: github.event_name == 'pull_request' && github.head_ref == 'feature/lockfile-ci-v0.53'
         run: |
-          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
-            echo "package-lock.json já está versionado; bootstrap não necessário."
+          CURRENT_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$CURRENT_VERSION" = "0.53.0" ]; then
+            echo "Metadados já estão em 0.53.0."
             exit 0
           fi
+          npm version 0.53.0 --no-git-tag-version
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "chore(lockfile): add npm-generated package-lock v0.53"
+          git add package.json package-lock.json
+          git commit -m "chore(release): align package metadata v0.53"
           git push origin HEAD:${GITHUB_HEAD_REF}
-
-      - name: Publish generated lockfile candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: package-lock-candidate
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 1
 
       - name: Typecheck
         run: npm run typecheck
@@ -132,5 +126,5 @@ jobs:
       - name: Build
         run: npm run build
 
-# Permissão de escrita é temporária somente para bootstrap do lockfile na branch v0.53.
+# Permissão de escrita é temporária somente para alinhar package.json/package-lock.json na branch v0.53.
 # A forma final desta PR volta a contents: read e npm ci antes do merge.
