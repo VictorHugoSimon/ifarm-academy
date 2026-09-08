@@ -7,7 +7,6 @@ import { PublicDiscoveryPage } from './pages/PublicDiscoveryPage'
 import { PublicPlansPage } from './pages/PublicPlansPage'
 import { PublicPortalPage } from './pages/PublicPortalPage'
 import { SmartFarmCheckinPage } from './pages/SmartFarmCheckinPage'
-import { installWorkspaceApiTransport } from './services/workspaceApiTransport'
 import './styles/runtime.css'
 import './styles/course-builder.css'
 import './styles/quiz-player.css'
@@ -20,8 +19,6 @@ const smartFarmCheckinRoute = pathname === '/smart-farm/checkin'
 const workspaceRoute = pathname === '/app' || pathname.startsWith('/app/')
 const publicPlansRoute = pathname === '/plans' || pathname.startsWith('/plans/')
 const publicDiscoveryRoute = pathname === '/paths' || pathname.startsWith('/paths/') || pathname === '/instructors' || pathname.startsWith('/instructors/')
-
-if (workspaceRoute) installWorkspaceApiTransport()
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
