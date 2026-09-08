@@ -1,14 +1,15 @@
 {
   "name": "ifarm-academy",
   "private": true,
-  "version": "0.51.0",
+  "version": "0.52.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "stage:smoke": "python3 scripts/smoke_stage.py"
   },
   "dependencies": {
     "@neondatabase/auth": "0.5.0-beta",
