@@ -1,10 +1,12 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export interface PlanPriceAdmin { id:string; billingInterval:'monthly'|'annual'; priceUnit:'subscription'|'per_user'; version:number; amountCents:number; currency:string; status:'draft'|'active'|'retired'; validFrom?:string|null; validUntil?:string|null; createdBy:string; createdAt:string; updatedAt:string }
 export interface PlanAdmin {
   id:string; slug:string; name:string; description:string; audienceType:'individual'|'corporate'|'partner'; commercialMode:'free'|'priced'|'contact_sales'; status:'draft'|'public'|'archived'; featured:boolean; maxUsers?:number|null; seoTitle?:string|null; seoDescription?:string|null; createdBy:string; createdAt:string; updatedAt:string;
   prices:PlanPriceAdmin[]; courses:Array<{courseId:string;title:string;publicVisibility:string}>; paths:Array<{pathId:string;title:string;visibility:string}>; externalBenefits:Array<{id:string;sourceSystem:string;externalRef:string;label:string;description:string}>;
 }
 
-async function request<T>(url:string, init?:RequestInit):Promise<T>{const response=await fetch(url,{...init,headers:{'content-type':'application/json',...(init?.headers??{})}});const payload=await response.json().catch(()=>null);if(!response.ok)throw new Error(payload?.error??`Academy API ${response.status}`);return payload as T}
+function request<T>(url:string, init?:RequestInit):Promise<T>{return authenticatedJson<T>(url,{...init,headers:{'content-type':'application/json',...(init?.headers??{})}})}
 
 export async function loadPlans(){return (await request<{data:PlanAdmin[]}>('/api/plans')).data}
 export async function createPlan(input:{slug:string;name:string;description?:string;audienceType:PlanAdmin['audienceType'];commercialMode:PlanAdmin['commercialMode'];featured?:boolean;maxUsers?:number|null;seoTitle?:string|null;seoDescription?:string|null}){return request('/api/plans',{method:'POST',body:JSON.stringify(input)})}
