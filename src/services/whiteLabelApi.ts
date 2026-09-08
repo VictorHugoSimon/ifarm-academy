@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type CatalogMode = 'all_tenant_courses' | 'selected_courses'
 
 export interface WhiteLabelBrand {
@@ -36,17 +38,11 @@ export interface WhiteLabelCatalogCourse {
   featured: boolean
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
   })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) {
-    const message = payload && typeof payload.error === 'string' ? payload.error : `Academy API ${response.status}`
-    throw new Error(message)
-  }
-  return payload as T
 }
 
 export async function loadWhiteLabelPermissions(): Promise<WhiteLabelPermissions> {
