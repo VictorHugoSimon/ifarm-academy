@@ -14,6 +14,7 @@ import {
   type CompanyRecord,
   type CompanyTrainingSummary,
 } from '../services/enterpriseApi'
+import { addVerifiedCompanyMember, loadCoreMembershipDirectory, type CoreMembershipDirectoryItem } from '../services/coreDirectoryApi'
 import type { CatalogCourse } from '../services/enrollmentApi'
 import '../styles/enterprise.css'
 
@@ -37,13 +38,15 @@ export function EnterpriseTrainingPage() {
   const [assignments, setAssignments] = useState<CompanyAssignmentRecord[]>([])
   const [catalog, setCatalog] = useState<CatalogCourse[]>([])
   const [summary, setSummary] = useState<CompanyTrainingSummary | null>(null)
+  const [coreDirectory, setCoreDirectory] = useState<CoreMembershipDirectoryItem[]>([])
+  const [coreDirectoryAvailable, setCoreDirectoryAvailable] = useState(true)
   const [loading, setLoading] = useState(true)
   const [serverAvailable, setServerAvailable] = useState(true)
   const [message, setMessage] = useState('')
 
   const [companyName, setCompanyName] = useState('')
   const [companyDocument, setCompanyDocument] = useState('')
-  const [memberForm, setMemberForm] = useState({ userId: '', displayName: '', employeeCode: '', jobTitle: '' })
+  const [memberForm, setMemberForm] = useState({ membershipId: '', userId: '', displayName: '', employeeCode: '', jobTitle: '' })
   const [assignmentForm, setAssignmentForm] = useState({ memberId: '', courseId: '', dueAt: '', required: true })
 
   const selectedCompany = useMemo(() => companies.find((item) => item.id === selectedCompanyId) ?? null, [companies, selectedCompanyId])
@@ -81,12 +84,30 @@ export function EnterpriseTrainingPage() {
     }))
   }
 
+  async function refreshCoreDirectory() {
+    try {
+      const items = await loadCoreMembershipDirectory()
+      setCoreDirectory(items)
+      setCoreDirectoryAvailable(true)
+      setMemberForm((current) => ({
+        ...current,
+        membershipId: items.some((item) => item.membershipId === current.membershipId)
+          ? current.membershipId
+          : items[0]?.membershipId ?? '',
+      }))
+    } catch {
+      setCoreDirectory([])
+      setCoreDirectoryAvailable(false)
+    }
+  }
+
   async function bootstrap() {
     setLoading(true)
     try {
       const [, courses] = await Promise.all([refreshCompanies(), loadEnterpriseCatalog()])
       setCatalog(courses)
       setServerAvailable(true)
+      await refreshCoreDirectory()
     } catch {
       setServerAvailable(false)
     } finally {
@@ -121,11 +142,31 @@ export function EnterpriseTrainingPage() {
     if (!selectedCompanyId) return
     setMessage('Adicionando colaborador...')
     try {
-      await addCompanyMember(selectedCompanyId, memberForm)
-      setMemberForm({ userId: '', displayName: '', employeeCode: '', jobTitle: '' })
+      if (coreDirectoryAvailable) {
+        if (!memberForm.membershipId) throw new Error('Selecione uma membership ativa do iFarm Core.')
+        await addVerifiedCompanyMember(selectedCompanyId, {
+          membershipId: memberForm.membershipId,
+          employeeCode: memberForm.employeeCode || undefined,
+          jobTitle: memberForm.jobTitle || undefined,
+        })
+      } else {
+        await addCompanyMember(selectedCompanyId, {
+          userId: memberForm.userId,
+          displayName: memberForm.displayName,
+          employeeCode: memberForm.employeeCode || undefined,
+          jobTitle: memberForm.jobTitle || undefined,
+        })
+      }
+      setMemberForm((current) => ({
+        membershipId: coreDirectory[0]?.membershipId ?? '',
+        userId: '',
+        displayName: '',
+        employeeCode: '',
+        jobTitle: '',
+      }))
       await refreshCompany(selectedCompanyId)
       await refreshCompanies(selectedCompanyId)
-      setMessage('Colaborador adicionado à empresa.')
+      setMessage(coreDirectoryAvailable ? 'Colaborador conciliado com a membership do iFarm Core.' : 'Colaborador adicionado pelo fallback de desenvolvimento.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Não foi possível adicionar o colaborador.')
     }
@@ -212,11 +253,30 @@ export function EnterpriseTrainingPage() {
             <div className="enterpriseOperations">
               <form className="panel enterpriseForm" onSubmit={handleAddMember}>
                 <div className="panelTitle"><h2>Adicionar colaborador</h2></div>
-                <label>iFarm User ID<input required value={memberForm.userId} onChange={(event) => setMemberForm({ ...memberForm, userId: event.target.value })} placeholder="Identidade existente no iFarm" /></label>
-                <label>Nome<input required value={memberForm.displayName} onChange={(event) => setMemberForm({ ...memberForm, displayName: event.target.value })} /></label>
+                {coreDirectoryAvailable ? (
+                  <>
+                    <label>Usuário iFarm Core
+                      <select required value={memberForm.membershipId} onChange={(event) => setMemberForm({ ...memberForm, membershipId: event.target.value })}>
+                        <option value="">Selecione uma membership ativa</option>
+                        {coreDirectory.map((item) => (
+                          <option key={item.membershipId} value={item.membershipId}>
+                            {item.displayName}{item.email ? ` · ${item.email}` : ''} · {item.roleCode}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <small>Nome e identidade vêm do iFarm Core. O e-mail é usado apenas para seleção e não é copiado para a Academy.</small>
+                  </>
+                ) : (
+                  <>
+                    <small>Fallback de desenvolvimento: diretório Core não configurado neste ambiente.</small>
+                    <label>iFarm User ID<input required value={memberForm.userId} onChange={(event) => setMemberForm({ ...memberForm, userId: event.target.value })} placeholder="Identidade existente no iFarm" /></label>
+                    <label>Nome<input required value={memberForm.displayName} onChange={(event) => setMemberForm({ ...memberForm, displayName: event.target.value })} /></label>
+                  </>
+                )}
                 <label>Código interno<input value={memberForm.employeeCode} onChange={(event) => setMemberForm({ ...memberForm, employeeCode: event.target.value })} /></label>
                 <label>Cargo / função<input value={memberForm.jobTitle} onChange={(event) => setMemberForm({ ...memberForm, jobTitle: event.target.value })} /></label>
-                <button className="primary" type="submit">Adicionar colaborador</button>
+                <button className="primary" type="submit" disabled={coreDirectoryAvailable && !coreDirectory.length}>Adicionar colaborador</button>
               </form>
 
               <form className="panel enterpriseForm" onSubmit={handleAssign}>
