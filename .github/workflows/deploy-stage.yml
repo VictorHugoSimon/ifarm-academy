@@ -1,0 +1,84 @@
+name: Deploy iFarm Academy STAGE
+
+on:
+  push:
+    branches: [stage]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ifarm-academy-stage-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: true
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      VITE_NEON_AUTH_URL: https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth
+      VITE_API_BASE_URL: /api
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate Academy Cloudflare credentials
+        shell: bash
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "CLOUDFLARE_API_TOKEN ausente no repositório ifarm-academy." >&2; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "CLOUDFLARE_ACCOUNT_ID ausente no repositório ifarm-academy." >&2; exit 1; }
+
+      - name: Install from lockfile
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Validate migrations offline
+        run: python3 scripts/validate_migrations.py
+
+      - name: Build STAGE
+        run: npm run build
+
+      - name: Resolve release
+        shell: bash
+        run: echo "ACADEMY_RELEASE=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
+      - name: Provision exclusive resources, migrate and deploy STAGE
+        run: python3 scripts/deploy_cloudflare_pages.py stage
+
+      - name: Smoke STAGE pages.dev
+        shell: bash
+        run: |
+          export ACADEMY_STAGE_URL="https://ifarm-academy-stage.pages.dev"
+          export ACADEMY_STAGE_EXPECTED_RELEASE="$ACADEMY_RELEASE"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if npm run stage:smoke; then
+              exit 0
+            fi
+            echo "Smoke STAGE tentativa $attempt falhou; aguardando propagação..."
+            sleep 10
+          done
+          echo "STAGE não passou no smoke após as tentativas." >&2
+          exit 1
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "STAGE aprovado: https://ifarm-academy-stage.pages.dev"
+          echo "Domínio desejado: https://academy-stage.ifarm.agr.br"
+          echo "Release: $ACADEMY_RELEASE"

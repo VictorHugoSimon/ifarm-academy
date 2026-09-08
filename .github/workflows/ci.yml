@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [develop]
+    branches: [develop, main]
   push:
-    branches: [develop]
+    branches: [develop, main]
 
 permissions:
   contents: read
@@ -107,7 +107,10 @@ jobs:
       - name: STAGE readiness smoke contract
         run: python3 scripts/stage_readiness_contract.py
 
+      - name: Deployment isolation contract
+        run: python3 scripts/deployment_contract.py
+
       - name: Build
         run: npm run build
 
-# Intencionalmente sem deploy. Publicação STAGE/PROD será tratada em workflows separados.
+# Deploys ficam isolados em deploy-stage.yml e deploy-production.yml.

@@ -1,31 +1,35 @@
+# Referência humana. O deploy real gera .wrangler-academy-deploy.toml no runner
+# depois de descobrir/criar IDs EXCLUSIVOS da iFarm Academy.
 name = "ifarm-academy-stage"
 pages_build_output_dir = "./dist"
-compatibility_date = "2026-09-01"
+compatibility_date = "2026-09-08"
 
-# Exemplo de binding. Preencher somente após criar um D1 exclusivo da Academy STAGE.
-# Nunca reutilizar database_id de outro projeto.
-#
+# STAGE exclusivo da Academy — nunca reutilizar database_id de outro projeto.
 # [[d1_databases]]
 # binding = "ACADEMY_DB"
 # database_name = "ifarm-academy-stage"
-# database_id = "<D1_DATABASE_ID_EXCLUSIVO_STAGE>"
+# database_id = "<D1_ID_DESCOBERTO_PELO_PIPELINE>"
+# migrations_dir = "migrations"
 
-# Storage exclusivo da Academy. O nome do bucket é exemplo e só deve ser
-# ativado após provisionamento de um recurso exclusivo deste projeto.
-#
+# Storage exclusivo da Academy.
 # [[r2_buckets]]
 # binding = "ACADEMY_STORAGE"
 # bucket_name = "ifarm-academy-stage-materials"
 
 [vars]
 ACADEMY_ENVIRONMENT = "stage"
-ACADEMY_RELEASE = "0.47.0"
+# No deploy real recebe os 12 primeiros caracteres do SHA promovido.
+ACADEMY_RELEASE = "<GIT_SHA_12>"
+ACADEMY_CORE_API_URL = "https://ifarm-core-api-stage.victorhugoteixeirasimon6.workers.dev"
 ACADEMY_CORE_REQUEST_TIMEOUT_MS = "4000"
-# Definir no ambiente STAGE com a URL real da API do iFarm Core STAGE:
-# ACADEMY_CORE_API_URL = "https://<core-stage-api>"
+ACADEMY_STORAGE_REQUIRED = "true"
+ACADEMY_RATE_LIMIT_ENABLED = "true"
 
-# Secrets devem ser cadastrados no ambiente, nunca neste arquivo:
-# - ACADEMY_ADMIN_PROXY_SECRET
+# Secrets NÃO pertencem a este arquivo:
+# - ACADEMY_ADMIN_PROXY_SECRET (gerado pelo deploy)
+# - ACADEMY_COMMERCIAL_WORKER_SECRET (gerado pelo deploy)
+# - CLOUDFLARE_API_TOKEN (GitHub Actions secret exclusivo da Academy)
+# - CLOUDFLARE_ACCOUNT_ID (GitHub Actions secret exclusivo da Academy)
 #
-# Variável pública de build do frontend, configurar no Pages STAGE:
-# - VITE_NEON_AUTH_URL = URL Neon Auth do mesmo ambiente do iFarm Core
+# Variável pública de build do frontend STAGE:
+# VITE_NEON_AUTH_URL=https://ep-hidden-truth-arvqm0b9.neonauth.c-4.us-west-2.aws.neon.tech/neondb/auth
