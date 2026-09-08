@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAcademySession } from '../session/AcademySessionContext'
 import { CourseBuilderPage } from './CourseBuilderPage'
 import { QuizBuilderPage } from './QuizBuilderPage'
 import { StudentAssessmentPlayerPage } from './StudentAssessmentPlayerPage'
@@ -56,9 +57,25 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['certificate', 'Certificação'],
 ]
 
+const academyAdminViews = new Set<WorkspaceView>([
+  'course', 'quiz', 'publication', 'public-portal', 'public-discovery', 'plans',
+  'commercial', 'white-label', 'instructors', 'certificate-validity', 'review',
+])
+
 export function AcademyWorkspacePage() {
-  const [view, setView] = useState<WorkspaceView>('course')
+  const { academyAdmin, ifarmOperations } = useAcademySession()
+  const [view, setView] = useState<WorkspaceView>(() => academyAdmin ? 'course' : 'catalog')
   const [runtimeBrand, setRuntimeBrand] = useState<WhiteLabelBrand | null>(null)
+
+  function canView(candidate: WorkspaceView) {
+    if (candidate === 'operations') return ifarmOperations
+    if (academyAdminViews.has(candidate)) return academyAdmin
+    return true
+  }
+
+  useEffect(() => {
+    if (!canView(view)) setView('catalog')
+  }, [view, academyAdmin, ifarmOperations])
 
   useEffect(() => {
     void loadWhiteLabelContext().then((brand) => {
@@ -78,7 +95,7 @@ export function AcademyWorkspacePage() {
       </div>
 
       <nav className="workspaceTabs" aria-label="Fluxo acadêmico">
-        {tabs.map(([id, label]) => (
+        {tabs.filter(([id]) => canView(id)).map(([id, label]) => (
           <button key={id} className={view === id ? 'active' : ''} onClick={() => setView(id)}>{label}</button>
         ))}
       </nav>
