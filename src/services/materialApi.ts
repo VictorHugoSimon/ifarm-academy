@@ -1,3 +1,5 @@
+import { authenticatedFetch, authenticatedJson } from './authenticatedFetch'
+
 export interface MaterialReservation {
   id: string
   courseId: string
@@ -11,15 +13,6 @@ export interface MaterialReservation {
   storageConfigured: boolean
 }
 
-async function jsonRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-  })
-  if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
-  return response.json() as Promise<T>
-}
-
 export async function reserveMaterial(input: {
   courseId: string
   lessonId: string
@@ -27,8 +20,9 @@ export async function reserveMaterial(input: {
   mimeType: string
   sizeBytes: number
 }): Promise<MaterialReservation> {
-  const result = await jsonRequest<{ data: MaterialReservation }>('/api/materials', {
+  const result = await authenticatedJson<{ data: MaterialReservation }>('/api/materials', {
     method: 'POST',
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
   return result.data
@@ -39,14 +33,19 @@ export async function uploadReservedMaterial(reservation: MaterialReservation, f
     throw new Error('Storage da Academy ainda não foi provisionado neste ambiente.')
   }
 
-  const response = await fetch(reservation.uploadUrl, {
+  const uploadUrl = new URL(reservation.uploadUrl, window.location.origin)
+  const init: RequestInit = {
     method: 'PUT',
     headers: {
       'content-type': reservation.mimeType,
       'x-ifarm-file-size': String(file.size),
     },
     body: file,
-  })
+  }
+  const response = uploadUrl.origin === window.location.origin
+    ? await authenticatedFetch(uploadUrl, init)
+    : await fetch(uploadUrl, init)
+
   if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
   return response.json() as Promise<{ data: {
     id: string
