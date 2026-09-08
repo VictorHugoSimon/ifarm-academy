@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type GamificationEventType = 'lesson_completed'|'course_completed'|'quiz_approved'|'certificate_issued'|'event_attended'|'smart_farm_activity'
 
 export interface GamificationProfile {
@@ -9,11 +11,11 @@ export interface GamificationProfile {
   recentActivity: Array<{ event_type: GamificationEventType; source_type: string; source_id: string; points: number; occurred_at: string }>
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } })
-  const payload = await response.json().catch(() => null)
-  if (!response.ok) throw new Error(payload?.error ?? `Academy API ${response.status}`)
-  return payload as T
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
+    ...init,
+    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
+  })
 }
 
 export async function loadGamificationProfile(): Promise<GamificationProfile> {
