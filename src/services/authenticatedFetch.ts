@@ -33,7 +33,3 @@ export async function authenticatedJson<T>(input: RequestInfo | URL, init: Reque
   }
   return payload as T
 }
-
-export function nativeAcademyFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return nativeFetch(input, init)
-}
