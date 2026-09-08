@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type CommercialSourceType='course_completion'|'certificate_issued'|'event'|'learning_path'|'plan'
 export type CommercialOfferSystem='ifarm_core'|'ifarm_store'|'ifarm_services'|'ifarm_finance'|'ifarm_insurance'|'academy'|'partner'|'other'
 export type CommercialStage='new'|'qualified'|'contacted'|'opportunity'|'converted'|'discarded'
@@ -56,11 +58,8 @@ export interface CommercialPrivacyView{
   globalState:GlobalCommercialContactState;contactAvailable:boolean;latestGlobalEvent?:CommercialPrivacyEvent|null;opportunities:CommercialPrivacyOpportunity[]
 }
 
-async function request<T>(url:string,init?:RequestInit):Promise<T>{
-  const response=await fetch(url,{...init,headers:{accept:'application/json','content-type':'application/json',...(init?.headers??{})}})
-  const payload=await response.json().catch(()=>null)
-  if(!response.ok){const message=payload&&typeof payload.error==='string'?payload.error:`Academy API ${response.status}`;throw new Error(message)}
-  return payload as T
+function request<T>(url:string,init?:RequestInit):Promise<T>{
+  return authenticatedJson<T>(url,{...init,headers:{accept:'application/json','content-type':'application/json',...(init?.headers??{})}})
 }
 function query(params:Record<string,string|undefined>){const search=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value)search.set(key,value)});const text=search.toString();return text?`?${text}`:''}
 
