@@ -13,6 +13,14 @@ export interface MaterialReservation {
   storageConfigured: boolean
 }
 
+export function shouldAuthenticateMaterialUpload(uploadUrl: string | URL, academyOrigin: string): boolean {
+  try {
+    return new URL(uploadUrl, academyOrigin).origin === new URL(academyOrigin).origin
+  } catch {
+    return false
+  }
+}
+
 export async function reserveMaterial(input: {
   courseId: string
   lessonId: string
@@ -33,7 +41,8 @@ export async function uploadReservedMaterial(reservation: MaterialReservation, f
     throw new Error('Storage da Academy ainda não foi provisionado neste ambiente.')
   }
 
-  const uploadUrl = new URL(reservation.uploadUrl, window.location.origin)
+  const academyOrigin = window.location.origin
+  const uploadUrl = new URL(reservation.uploadUrl, academyOrigin)
   const init: RequestInit = {
     method: 'PUT',
     headers: {
@@ -42,7 +51,7 @@ export async function uploadReservedMaterial(reservation: MaterialReservation, f
     },
     body: file,
   }
-  const response = uploadUrl.origin === window.location.origin
+  const response = shouldAuthenticateMaterialUpload(uploadUrl, academyOrigin)
     ? await authenticatedFetch(uploadUrl, init)
     : await fetch(uploadUrl, init)
 
