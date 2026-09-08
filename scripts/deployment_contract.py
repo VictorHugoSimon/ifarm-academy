@@ -16,19 +16,25 @@ try:
 except SyntaxError as error:
     errors.append(f"provisioner_syntax:{error.msg}")
 
+# Allowlist dos únicos recursos Cloudflare que o provisionador pode materializar.
 required_resources = [
-    "ifarm-academy-stage",
-    "ifarm-academy-stage-materials",
-    "ifarm-academy-production",
-    "ifarm-academy-production-materials",
+    'project="ifarm-academy-stage"',
+    'database="ifarm-academy-stage"',
+    'bucket="ifarm-academy-stage-materials"',
+    'project="ifarm-academy"',
+    'database="ifarm-academy-production"',
+    'bucket="ifarm-academy-production-materials"',
 ]
 for value in required_resources:
     if value not in DEPLOY:
         errors.append(f"resource_missing:{value}")
 
+# Workflows não podem apontar para nenhum projeto estrangeiro. A denylist também
+# existe dentro do próprio provisionador como defesa runtime, por isso não se
+# auto-inspeciona aqui.
 forbidden = ["instituto-allamo", "allamo-pmo", "terra-pulse", "sbs-brasil", "maison-decants", "ser-vital"]
 for value in forbidden:
-    if value in (DEPLOY + STAGE + PROD).lower():
+    if value in (STAGE + PROD).lower():
         errors.append(f"foreign_project_reference:{value}")
 
 if 'branches: [stage]' not in STAGE:
@@ -62,7 +68,7 @@ if errors:
 
 print("Deployment contract: PASS")
 print("- provisioner syntax OK")
-print("- stage/prod isolated")
+print("- stage/prod allowlist explicit")
 print("- D1/R2 exclusive namespace enforced")
 print("- Core endpoints explicit")
 print("- credential and readiness gates present")
