@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type MarketplaceStatus = 'submitted' | 'under_review' | 'changes_requested' | 'approved' | 'rejected' | 'published' | 'withdrawn'
 
 export interface MarketplaceCourseOption {
@@ -54,13 +56,11 @@ export interface MarketplaceCatalogItem {
   commissionRuleVersion: number
 }
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
+function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return authenticatedJson<T>(url, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
   })
-  if (!response.ok) throw new Error(`Academy API ${response.status}: ${await response.text()}`)
-  return response.json() as Promise<T>
 }
 
 export async function loadMarketplacePermissions(): Promise<MarketplacePermissions> {
