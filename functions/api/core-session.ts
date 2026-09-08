@@ -46,6 +46,14 @@ function normalizeMfa(value: unknown) {
   }
 }
 
+function normalizePermissions(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.flatMap((item) => {
+    const permission = safeString(item)?.toLowerCase()
+    return permission && permission.length <= 120 ? [permission] : []
+  }))]
+}
+
 function normalizeTenantRows(value: unknown) {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -70,10 +78,12 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   let meResponse: Response
   let tenantsResponse: Response
+  let permissionsResponse: Response
   try {
-    ;[meResponse, tenantsResponse] = await Promise.all([
+    ;[meResponse, tenantsResponse, permissionsResponse] = await Promise.all([
       callCore(env, authorization, '/api/v1/me'),
       callCore(env, authorization, '/api/v1/tenants'),
+      callCore(env, authorization, '/api/v1/me/permissions'),
     ])
   } catch {
     return json({ error: 'CORE_SESSION_UNAVAILABLE', message: 'Não foi possível consultar a sessão do iFarm Core.' }, 503)
@@ -81,12 +91,15 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   if (!meResponse.ok) return upstreamError(meResponse.status)
   if (!tenantsResponse.ok) return upstreamError(tenantsResponse.status)
+  if (!permissionsResponse.ok) return upstreamError(permissionsResponse.status)
 
   let me: Record<string, unknown>
   let tenantPayload: Record<string, unknown>
+  let permissionPayload: Record<string, unknown>
   try {
     me = await meResponse.json() as Record<string, unknown>
     tenantPayload = await tenantsResponse.json() as Record<string, unknown>
+    permissionPayload = await permissionsResponse.json() as Record<string, unknown>
   } catch {
     return json({ error: 'CORE_SESSION_INVALID', message: 'O iFarm Core retornou uma sessão inválida.' }, 503)
   }
@@ -104,6 +117,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       role: safeString(me.role),
       ifarmAdmin: me.ifarmAdmin === true,
       mfa: normalizeMfa(me.mfa),
+      permissions: normalizePermissions(permissionPayload.permissions),
       tenants: normalizeTenantRows(tenantPayload.tenants),
     },
   })

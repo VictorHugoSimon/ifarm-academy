@@ -11,7 +11,7 @@ function response(data: unknown, status = 200) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Core session bootstrap', () => {
-  it('carrega identidade e memberships antes de exigir tenant ativo', async () => {
+  it('carrega identidade, memberships e permissões antes de exigir tenant ativo', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input)
       if (url.endsWith('/api/v1/me')) {
@@ -33,6 +33,9 @@ describe('Core session bootstrap', () => {
           active: true,
         }] })
       }
+      if (url.endsWith('/api/v1/me/permissions')) {
+        return response({ permissions: ['organization.manage', 'user.manage', 'notification.manage'] })
+      }
       return response({}, 404)
     }))
 
@@ -48,9 +51,28 @@ describe('Core session bootstrap', () => {
       data: {
         userId: USER_ID,
         tenantId: null,
+        permissions: ['organization.manage', 'user.manage', 'notification.manage'],
         tenants: [{ id: TENANT_ID, tradeName: 'Fazenda Modelo', active: true }],
       },
     })
+  })
+
+  it('falha fechado quando permissões Core não podem ser carregadas', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/v1/me')) return response({ id: USER_ID, tenantId: TENANT_ID })
+      if (url.endsWith('/api/v1/tenants')) return response({ tenants: [] })
+      if (url.endsWith('/api/v1/me/permissions')) return response({ error: 'forbidden' }, 403)
+      return response({}, 404)
+    }))
+
+    const result = await onRequestGet({
+      env: { ACADEMY_CORE_API_URL: 'https://core.ifarm.test' },
+      request: new Request('https://academy.test/api/core-session', {
+        headers: { authorization: 'Bearer valid-token' },
+      }),
+    })
+    expect(result.status).toBe(403)
   })
 
   it('troca tenant exclusivamente pelo endpoint oficial do Core', async () => {

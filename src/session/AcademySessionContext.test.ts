@@ -9,6 +9,7 @@ function snapshot(overrides: Partial<CoreSessionSnapshot> = {}): CoreSessionSnap
     role: 'operator',
     ifarmAdmin: false,
     mfa: { required: false, verified: false, satisfied: false },
+    permissions: [],
     tenants: [],
     ...overrides,
   }
@@ -18,12 +19,37 @@ describe('Academy session privilege projection', () => {
   it('não eleva papel comum', () => {
     const access = deriveAcademySessionAccess(snapshot())
     expect(access.academyAdmin).toBe(false)
+    expect(access.enterpriseManager).toBe(false)
     expect(access.ifarmOperations).toBe(false)
   })
 
   it('permite owner/tenant_admin somente com MFA satisfeito quando exigido', () => {
     expect(deriveAcademySessionAccess(snapshot({ role: 'owner', mfa: { required: true, verified: true, satisfied: false } })).academyAdmin).toBe(false)
     expect(deriveAcademySessionAccess(snapshot({ role: 'owner', mfa: { required: true, verified: true, satisfied: true } })).academyAdmin).toBe(true)
+  })
+
+  it('projeta gestão empresarial somente quando as capabilities Core estão presentes', () => {
+    const permissions = ['organization.manage', 'user.manage', 'notification.manage']
+    const access = deriveAcademySessionAccess(snapshot({ role: 'manager', permissions }))
+    expect(access.enterpriseManager).toBe(true)
+    expect(access.academyAdmin).toBe(false)
+  })
+
+  it('não libera gestão empresarial por role manager sem todas as permissions', () => {
+    const access = deriveAcademySessionAccess(snapshot({
+      role: 'manager',
+      permissions: ['organization.manage', 'user.manage'],
+    }))
+    expect(access.enterpriseManager).toBe(false)
+  })
+
+  it('bloqueia gestão empresarial quando MFA exigido ainda não está satisfeito', () => {
+    const access = deriveAcademySessionAccess(snapshot({
+      role: 'manager',
+      permissions: ['organization.manage', 'user.manage', 'notification.manage'],
+      mfa: { required: true, verified: true, satisfied: false },
+    }))
+    expect(access.enterpriseManager).toBe(false)
   })
 
   it('reserva Operações para ifarm_admin com MFA satisfeito', () => {

@@ -61,21 +61,23 @@ const academyAdminViews = new Set<WorkspaceView>([
   'course', 'quiz', 'publication', 'public-portal', 'public-discovery', 'plans',
   'commercial', 'white-label', 'instructors', 'certificate-validity', 'review',
 ])
+const enterpriseViews = new Set<WorkspaceView>(['enterprise', 'enterprise-paths'])
 
 export function AcademyWorkspacePage() {
-  const { academyAdmin, ifarmOperations } = useAcademySession()
-  const [view, setView] = useState<WorkspaceView>(() => academyAdmin ? 'course' : 'catalog')
+  const { academyAdmin, enterpriseManager, ifarmOperations } = useAcademySession()
+  const [view, setView] = useState<WorkspaceView>(() => academyAdmin ? 'course' : enterpriseManager ? 'enterprise' : 'catalog')
   const [runtimeBrand, setRuntimeBrand] = useState<WhiteLabelBrand | null>(null)
 
   function canView(candidate: WorkspaceView) {
     if (candidate === 'operations') return ifarmOperations
     if (academyAdminViews.has(candidate)) return academyAdmin
+    if (enterpriseViews.has(candidate)) return academyAdmin || enterpriseManager
     return true
   }
 
   useEffect(() => {
-    if (!canView(view)) setView('catalog')
-  }, [view, academyAdmin, ifarmOperations])
+    if (!canView(view)) setView(enterpriseManager ? 'enterprise' : 'catalog')
+  }, [view, academyAdmin, enterpriseManager, ifarmOperations])
 
   useEffect(() => {
     void loadWhiteLabelContext().then((brand) => {
