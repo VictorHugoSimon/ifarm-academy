@@ -1,3 +1,5 @@
+import { authenticatedJson } from './authenticatedFetch'
+
 export type CertificateType = 'free_course' | 'corporate_training' | 'regulatory_training' | 'partner_certification'
 export type CertificateEffectiveStatus = 'valid' | 'expired' | 'revoked'
 export type CertificateValidityMode = 'not_configured' | 'indefinite' | 'fixed_months'
@@ -37,7 +39,7 @@ export interface CertificateRecord {
   brand?: CertificateBrandSnapshot
 }
 
-async function jsonRequest<T>(url: string): Promise<T> {
+async function publicJsonRequest<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
@@ -48,12 +50,12 @@ async function jsonRequest<T>(url: string): Promise<T> {
 }
 
 export async function loadMyCertificates(): Promise<CertificateRecord[]> {
-  const result = await jsonRequest<{ data: CertificateRecord[] }>('/api/my-certificates')
+  const result = await authenticatedJson<{ data: CertificateRecord[] }>('/api/my-certificates', { headers: { accept: 'application/json' } })
   return result.data
 }
 
 export async function validatePublicCertificate(code: string): Promise<{ valid: boolean; effectiveStatus?: CertificateEffectiveStatus; certificate: CertificateRecord }> {
-  return jsonRequest<{ valid: boolean; effectiveStatus?: CertificateEffectiveStatus; certificate: CertificateRecord }>(
+  return publicJsonRequest<{ valid: boolean; effectiveStatus?: CertificateEffectiveStatus; certificate: CertificateRecord }>(
     `/api/certificates/public/${encodeURIComponent(code.trim().toUpperCase())}`,
   )
 }
