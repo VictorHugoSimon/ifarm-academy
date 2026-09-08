@@ -1,3 +1,5 @@
+import { authenticatedFetch as fetch } from './authenticatedFetch'
+
 export type CommercialSourceType='course_completion'|'certificate_issued'|'event'|'learning_path'|'plan'
 export type CommercialOfferSystem='ifarm_core'|'ifarm_store'|'ifarm_services'|'ifarm_finance'|'ifarm_insurance'|'academy'|'partner'|'other'
 export type CommercialStage='new'|'qualified'|'contacted'|'opportunity'|'converted'|'discarded'
