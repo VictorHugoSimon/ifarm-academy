@@ -8,6 +8,7 @@ for migration in sorted((ROOT / 'migrations').glob('*.sql')):
     conn.executescript(migration.read_text(encoding='utf-8'))
 
 now = '2026-09-09T18:00:00.000Z'
+expires = '2026-09-09T18:05:00.000Z'
 
 conn.execute('''INSERT INTO academy_courses
   (id,tenant_id,title,description,status,quiz_enabled,minimum_score,attempts_allowed,created_by,updated_by,created_at,updated_at)
@@ -18,6 +19,9 @@ conn.execute('''INSERT INTO academy_course_modules
 conn.execute('''INSERT INTO academy_course_lessons
   (id,tenant_id,course_id,module_id,title,content_type,duration_minutes,required,position,content_json,created_at,updated_at)
   VALUES ('L1','T1','C1','M1','Pressão','text',20,1,0,'{"body":"Verifique pressão e vazão."}',?,?)''', (now, now))
+conn.execute('''INSERT INTO academy_enrollments
+  (id,tenant_id,course_id,student_id,student_name_snapshot,source,status,enrolled_at,completed_at,updated_at)
+  VALUES ('EN1','T1','C1','U1','Aluno','academy','active',?,NULL,?)''', (now, now))
 conn.execute('''INSERT INTO academy_tutor_course_policies
   (tenant_id,course_id,enabled,approved_by,approved_at,last_indexed_at,last_indexed_course_updated_at,created_at,updated_at)
   VALUES ('T1','C1',1,'ADMIN1',?,?,?, ?,?)''', (now, now, now, now, now))
@@ -47,17 +51,29 @@ assert conn.execute("SELECT generative_enabled FROM academy_tutor_course_policie
 conn.execute('''INSERT INTO academy_tutor_sessions
   (id,tenant_id,student_id,course_id,title,status,created_at,updated_at)
   VALUES ('S1','T1','U1','C1','Pergunta','active',?,?)''', (now, now))
+
+# A v0.59 exige política explícita de uso antes de qualquer tentativa externa real.
+conn.execute('''INSERT INTO academy_tutor_usage_policies
+  (id,tenant_id,scope_type,scope_id,period,version,max_provider_requests,max_request_chars,status,
+   rationale,approved_by,approved_at,archived_at,created_at)
+  VALUES ('QP1','T1','tenant',NULL,'day',1,10,10000,'active',
+          'Limite de integração para fixture do provider.','ADMIN1',?,NULL,?)''', (now, now))
+conn.execute('''INSERT INTO academy_tutor_usage_reservations
+  (id,tenant_id,student_id,course_id,request_chars,status,created_at,expires_at,finalized_at)
+  VALUES ('R1','T1','U1','C1',800,'reserved',?,?,NULL)''', (now, expires))
+conn.execute("UPDATE academy_tutor_usage_reservations SET status='consumed',finalized_at=? WHERE id='R1'", (now,))
+
 conn.execute('''INSERT INTO academy_tutor_provider_events
   (id,tenant_id,session_id,student_id,course_id,provider_mode,outcome,latency_ms,evidence_count,
-   citation_count,request_chars,response_chars,fallback_reason,created_at)
-  VALUES ('E1','T1','S1','U1','C1','gateway_v1','success',120,2,1,800,250,NULL,?)''', (now,))
+   citation_count,request_chars,response_chars,fallback_reason,created_at,reservation_id)
+  VALUES ('E1','T1','S1','U1','C1','gateway_v1','success',120,2,1,800,250,NULL,?,'R1')''', (now,))
 
 # Evento precisa pertencer ao mesmo tenant/aluno/curso da sessão.
 try:
     conn.execute('''INSERT INTO academy_tutor_provider_events
       (id,tenant_id,session_id,student_id,course_id,provider_mode,outcome,latency_ms,evidence_count,
-       citation_count,request_chars,response_chars,fallback_reason,created_at)
-      VALUES ('BAD','T2','S1','U1','C1','gateway_v1','provider_error',1,1,0,10,0,'x',?)''', (now,))
+       citation_count,request_chars,response_chars,fallback_reason,created_at,reservation_id)
+      VALUES ('BAD','T2','S1','U1','C1','gateway_v1','provider_error',1,1,0,10,0,'x',?,'R1')''', (now,))
     raise AssertionError('Cross-tenant provider event accepted')
 except sqlite3.IntegrityError:
     pass
