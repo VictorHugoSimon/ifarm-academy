@@ -7,6 +7,7 @@ import {
   loadTutorPolicy,
   loadTutorSessions,
   rebuildTutorSources,
+  setTutorGenerationPolicy,
   setTutorPolicy,
   type TutorAnswer,
   type TutorPolicyStatus,
@@ -83,9 +84,15 @@ export function TutorPage() {
       setAnswer(result)
       setSessionId(result.sessionId)
       setQuestion('')
-      setStatus(result.mode === 'evidence_only'
-        ? 'Resposta limitada às evidências publicadas abaixo.'
-        : 'O Tutor não encontrou contexto autorizado suficiente para responder com segurança.')
+      if (result.mode === 'provider_generated') {
+        setStatus('Resposta gerada pelo provider autorizado e validada contra as citações do curso.')
+      } else if (result.mode === 'evidence_only') {
+        setStatus(result.fallbackUsed
+          ? 'O provider não passou no contrato de segurança; o Tutor retornou somente evidências.'
+          : 'Resposta limitada às evidências publicadas abaixo.')
+      } else {
+        setStatus('O Tutor não encontrou contexto autorizado suficiente para responder com segurança.')
+      }
       setSessions(await loadTutorSessions().catch(() => sessions))
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Não foi possível consultar o Tutor.')
@@ -112,9 +119,30 @@ export function TutorPage() {
         ? selected?.status === 'published'
           ? 'Tutor autorizado e fontes sincronizadas quando disponíveis.'
           : 'Tutor autorizado. A indexação ocorrerá quando o curso for publicado.'
-        : 'Tutor desautorizado. O índice deste curso foi removido.')
+        : 'Tutor desautorizado. O índice e a autorização generativa deste curso foram removidos.')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Não foi possível alterar a autorização do Tutor.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function changeGenerationPolicy(enabled: boolean) {
+    if (!courseId || !academyAdmin) return
+    setBusy(true)
+    setStatus(enabled
+      ? 'Registrando autorização separada para geração externa nesta versão publicada...'
+      : 'Desativando geração externa para este curso...')
+    try {
+      await setTutorGenerationPolicy(courseId, enabled)
+      await refreshPolicy()
+      setAnswer(null)
+      setSessionId(undefined)
+      setStatus(enabled
+        ? 'Geração externa autorizada somente para a versão publicada atual e com citações obrigatórias.'
+        : 'Geração externa desativada. O Tutor permanece em evidence-only.')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Não foi possível alterar a autorização generativa.')
     } finally {
       setBusy(false)
     }
@@ -148,7 +176,7 @@ export function TutorPage() {
         <div>
           <small>iFarm Academy AI Tutor</small>
           <h2>Tutor baseado em conteúdo autorizado</h2>
-          <p>O modo atual é <strong>evidence-only</strong>: ele localiza fontes do curso, mas não inventa explicações técnicas além do material publicado.</p>
+          <p>O fallback permanente é <strong>evidence-only</strong>. Geração externa só ocorre quando o curso e a versão publicada possuem uma segunda autorização explícita e o provider server-side está configurado.</p>
         </div>
         <button type="button" className="secondaryButton" onClick={newConversation}>Nova conversa</button>
       </header>
@@ -171,12 +199,23 @@ export function TutorPage() {
               <span>Curso: {policy.courseStatus}</span>
               <span>Fontes indexadas: {policy.chunkCount}</span>
               <span>Última indexação: {policy.lastIndexedAt ? new Date(policy.lastIndexedAt).toLocaleString('pt-BR') : 'ainda não realizada'}</span>
+              <span>Provider: {policy.providerRuntime.configured ? `${policy.providerRuntime.mode} configurado` : 'não configurado'}</span>
+              <span>Geração externa: {policy.generativeEnabled ? 'autorizada para a versão atual' : 'desativada'}</span>
+              {policy.generativeApprovedAt && <span>Aprovação generativa: {new Date(policy.generativeApprovedAt).toLocaleString('pt-BR')}</span>}
               <div className="tutorPolicyActions">
                 <button type="button" className="secondaryButton" disabled={busy} onClick={() => void changePolicy(!policy.enabled)}>
                   {policy.enabled ? 'Desautorizar Tutor' : 'Autorizar Tutor'}
                 </button>
                 <button type="button" className="secondaryButton" disabled={!policy.enabled || policy.courseStatus !== 'published' || busy} onClick={rebuildSources}>
                   Atualizar fontes
+                </button>
+                <button
+                  type="button"
+                  className="secondaryButton"
+                  disabled={busy || !policy.enabled || policy.courseStatus !== 'published' || (!policy.providerRuntime.configured && !policy.generativeEnabled)}
+                  onClick={() => void changeGenerationPolicy(!policy.generativeEnabled)}
+                >
+                  {policy.generativeEnabled ? 'Desativar geração externa' : 'Autorizar geração externa'}
                 </button>
               </div>
             </div>
@@ -206,13 +245,20 @@ export function TutorPage() {
         <div className="tutorConversation">
           <div className="tutorSafetyNotice">
             <strong>Regra de segurança</strong>
-            <span>Publicado não significa autorizado para IA. Sem autorização e evidência suficiente, o Tutor não responde tecnicamente.</span>
+            <span>Publicado não significa autorizado para IA, e autorização do Tutor não significa autorização para provider externo. Sem fonte válida, o Tutor não completa lacunas.</span>
           </div>
 
           {answer && (
             <article className="tutorAnswer">
-              <small>{answer.mode === 'evidence_only' ? 'Evidências encontradas' : 'Contexto insuficiente'}</small>
+              <small>{answer.mode === 'provider_generated'
+                ? 'Resposta grounded com citações validadas'
+                : answer.mode === 'evidence_only'
+                  ? 'Evidências encontradas'
+                  : 'Contexto insuficiente'}</small>
               <p>{answer.answer}</p>
+              {answer.providerAttempted && answer.providerOutcome !== 'success' && (
+                <p className="tutorHint">Fallback de segurança aplicado: {answer.providerOutcome}.</p>
+              )}
               <div className="tutorCitations">
                 {answer.citations.map((citation) => (
                   <blockquote key={citation.chunkId}>
