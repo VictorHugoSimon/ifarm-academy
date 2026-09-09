@@ -29,11 +29,18 @@ export interface TutorUsagePolicyEvaluation {
   windowStartedAt: string
 }
 
+export type TutorQuotaBlockReason =
+  | 'tenant_quota_not_configured'
+  | 'provider_requests_limit'
+  | 'request_chars_limit'
+  | 'quota_concurrency_block'
+
 export interface TutorQuotaDecision {
   allowed: boolean
-  reason?: 'tenant_quota_not_configured' | 'provider_requests_limit' | 'request_chars_limit'
+  reason?: TutorQuotaBlockReason
   blockedPolicy?: TutorUsagePolicyEvaluation
   policies: TutorUsagePolicyEvaluation[]
+  reservationId?: string
 }
 
 export function tutorQuotaWindowStart(period: TutorQuotaPeriod, now = new Date()): string {
@@ -81,31 +88,47 @@ export function decideTutorQuota(
   return { allowed: true, policies: evaluations }
 }
 
-function policyFilterSql(policy: TutorUsagePolicyRow): { sql: string; bindings: string[] } {
-  if (policy.scope_type === 'course') return { sql: ' AND course_id=?', bindings: [String(policy.scope_id ?? '')] }
-  if (policy.scope_type === 'student') return { sql: ' AND student_id=?', bindings: [String(policy.scope_id ?? '')] }
+function policyFilterSql(policy: TutorUsagePolicyRow, alias = ''): { sql: string; bindings: string[] } {
+  const prefix = alias ? `${alias}.` : ''
+  if (policy.scope_type === 'course') return { sql: ` AND ${prefix}course_id=?`, bindings: [String(policy.scope_id ?? '')] }
+  if (policy.scope_type === 'student') return { sql: ` AND ${prefix}student_id=?`, bindings: [String(policy.scope_id ?? '')] }
   return { sql: '', bindings: [] }
 }
 
 export async function tutorUsageForPolicy(db: any, policy: TutorUsagePolicyRow, now = new Date()): Promise<TutorUsagePolicyEvaluation> {
   const windowStartedAt = tutorQuotaWindowStart(policy.period, now)
-  const filter = policyFilterSql(policy)
-  const row = await db.prepare(`
+  const eventFilter = policyFilterSql(policy, 'e')
+  const reservationFilter = policyFilterSql(policy, 'r')
+  const nowIso = now.toISOString()
+
+  const eventRow = await db.prepare(`
     SELECT
       COUNT(*) AS provider_requests,
-      COALESCE(SUM(request_chars),0) AS request_chars
-    FROM academy_tutor_provider_events
-    WHERE tenant_id=?
-      AND created_at>=?
-      AND outcome<>'config_error'
-      ${filter.sql}
-  `).bind(policy.tenant_id, windowStartedAt, ...filter.bindings).first()
+      COALESCE(SUM(e.request_chars),0) AS request_chars
+    FROM academy_tutor_provider_events e
+    WHERE e.tenant_id=?
+      AND e.created_at>=?
+      AND e.outcome<>'config_error'
+      ${eventFilter.sql}
+  `).bind(policy.tenant_id, windowStartedAt, ...eventFilter.bindings).first()
+
+  const reservationRow = await db.prepare(`
+    SELECT
+      COUNT(*) AS provider_requests,
+      COALESCE(SUM(r.request_chars),0) AS request_chars
+    FROM academy_tutor_usage_reservations r
+    WHERE r.tenant_id=?
+      AND r.created_at>=?
+      AND r.status='reserved'
+      AND r.expires_at>?
+      ${reservationFilter.sql}
+  `).bind(policy.tenant_id, windowStartedAt, nowIso, ...reservationFilter.bindings).first()
 
   return {
     policy,
     usage: {
-      providerRequests: Number(row?.provider_requests ?? 0),
-      requestChars: Number(row?.request_chars ?? 0),
+      providerRequests: Number(eventRow?.provider_requests ?? 0) + Number(reservationRow?.provider_requests ?? 0),
+      requestChars: Number(eventRow?.request_chars ?? 0) + Number(reservationRow?.request_chars ?? 0),
     },
     windowStartedAt,
   }
@@ -145,4 +168,54 @@ export async function evaluateTutorUsageQuota(
 ): Promise<TutorQuotaDecision> {
   const policies = await loadApplicableTutorUsagePolicies(db, input, now)
   return decideTutorQuota(policies, input.projectedRequestChars)
+}
+
+export async function reserveTutorUsage(
+  db: any,
+  input: { tenantId: string; courseId: string; studentId: string; projectedRequestChars: number },
+  now = new Date(),
+): Promise<TutorQuotaDecision> {
+  const decision = await evaluateTutorUsageQuota(db, input, now)
+  if (!decision.allowed) return decision
+
+  const reservationId = crypto.randomUUID()
+  const createdAt = now.toISOString()
+  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000).toISOString()
+  try {
+    await db.prepare(`
+      INSERT INTO academy_tutor_usage_reservations (
+        id, tenant_id, student_id, course_id, request_chars,
+        status, created_at, expires_at, finalized_at
+      ) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?, NULL)
+    `).bind(
+      reservationId,
+      input.tenantId,
+      input.studentId,
+      input.courseId,
+      Math.max(1, Math.trunc(input.projectedRequestChars)),
+      createdAt,
+      expiresAt,
+    ).run()
+  } catch {
+    return {
+      allowed: false,
+      reason: 'quota_concurrency_block',
+      policies: decision.policies,
+    }
+  }
+
+  return { ...decision, reservationId }
+}
+
+export function finalizeTutorUsageReservationStatement(
+  db: any,
+  reservationId: string,
+  status: 'consumed' | 'released',
+  finalizedAt = new Date().toISOString(),
+) {
+  return db.prepare(`
+    UPDATE academy_tutor_usage_reservations
+    SET status=?, finalized_at=?
+    WHERE id=? AND status='reserved'
+  `).bind(status, finalizedAt, reservationId)
 }
