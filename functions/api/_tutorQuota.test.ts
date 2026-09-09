@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { decideTutorQuota, tutorQuotaWindowStart, type TutorUsagePolicyEvaluation } from './_tutorQuota'
 
-function policy(input: Partial<TutorUsagePolicyEvaluation> & { id: string; scope: 'tenant' | 'course' | 'student' }): TutorUsagePolicyEvaluation {
+type PolicyFixtureInput = Omit<Partial<TutorUsagePolicyEvaluation>, 'policy'> & {
+  id: string
+  scope: 'tenant' | 'course' | 'student'
+  policy?: Partial<TutorUsagePolicyEvaluation['policy']>
+}
+
+function policy(input: PolicyFixtureInput): TutorUsagePolicyEvaluation {
   return {
     policy: {
       id: input.id,
