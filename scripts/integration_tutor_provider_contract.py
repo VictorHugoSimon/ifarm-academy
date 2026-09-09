@@ -75,13 +75,27 @@ try:
 except sqlite3.IntegrityError:
     pass
 
-# Despublicar revoga geração externa e remove fontes pelo contrato v0.57.
+# Alterar a versão do curso, mesmo mantendo published, revoga a geração.
+version2 = '2026-09-09T18:05:00.000Z'
+conn.execute("UPDATE academy_courses SET updated_at=? WHERE tenant_id='T1' AND id='C1'", (version2,))
+row = conn.execute("SELECT generative_enabled,generative_disabled_at FROM academy_tutor_course_policies WHERE tenant_id='T1' AND course_id='C1'").fetchone()
+assert row[0] == 0
+assert row[1] is not None
+
+# Reaprovação precisa apontar explicitamente para a nova versão publicada.
+conn.execute('''UPDATE academy_tutor_course_policies
+  SET generative_enabled=1,generative_approved_by='ADMIN1',generative_approved_at=?,
+      generative_approved_course_updated_at=?,generative_disabled_at=NULL,updated_at=?
+  WHERE tenant_id='T1' AND course_id='C1' ''', (version2, version2, version2))
+assert conn.execute("SELECT generative_enabled FROM academy_tutor_course_policies WHERE tenant_id='T1' AND course_id='C1'").fetchone()[0] == 1
+
+# Despublicar também revoga geração externa e remove fontes pelo contrato v0.57.
 conn.execute("UPDATE academy_courses SET status='draft',updated_at='2026-09-09T18:10:00.000Z' WHERE tenant_id='T1' AND id='C1'")
 row = conn.execute("SELECT generative_enabled,generative_disabled_at FROM academy_tutor_course_policies WHERE tenant_id='T1' AND course_id='C1'").fetchone()
 assert row[0] == 0
 assert row[1] is not None
 
-# Mesmo reabilitando conteúdo, geração não volta automaticamente.
+# Republicar não reabilita geração automaticamente.
 conn.execute("UPDATE academy_courses SET status='published',updated_at='2026-09-09T18:20:00.000Z' WHERE tenant_id='T1' AND id='C1'")
 row = conn.execute("SELECT generative_enabled FROM academy_tutor_course_policies WHERE tenant_id='T1' AND course_id='C1'").fetchone()
 assert row[0] == 0
