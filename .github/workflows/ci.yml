@@ -110,6 +110,9 @@ jobs:
       - name: AI Tutor provider boundary fixtures
         run: python3 scripts/integration_tutor_provider_contract.py
 
+      - name: AI Tutor usage and guardrail fixtures
+        run: python3 scripts/integration_tutor_guardrails_contract.py
+
       - name: STAGE readiness smoke contract
         run: python3 scripts/stage_readiness_contract.py
 
