@@ -104,6 +104,9 @@ jobs:
       - name: Commercial delivery worker fixtures
         run: python3 scripts/integration_commercial_worker_contract.py
 
+      - name: AI Tutor authorized content fixtures
+        run: python3 scripts/integration_tutor_contract.py
+
       - name: STAGE readiness smoke contract
         run: python3 scripts/stage_readiness_contract.py
 
