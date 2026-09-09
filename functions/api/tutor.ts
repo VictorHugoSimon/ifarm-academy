@@ -1,6 +1,12 @@
 import { requireTrustedContext } from './_auth'
 import { evidenceOnlyMessage, scoreTutorEvidence, type TutorEvidence } from './_tutor'
-import { runTutorProvider, tutorProviderRuntimeStatus, type TutorProviderResult } from './_tutorProvider'
+import { buildTutorProviderEnvelope, runTutorProvider, tutorProviderRuntimeStatus, type TutorProviderResult } from './_tutorProvider'
+import { assessTutorPromptRisk } from './_tutorSafety'
+import {
+  finalizeTutorUsageReservationStatement,
+  reserveTutorUsage,
+  type TutorQuotaBlockReason,
+} from './_tutorQuota'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 function clampQuestion(value: unknown): string {
@@ -25,6 +31,15 @@ function citedEvidence(evidence: TutorEvidence[], citationIds: string[]): TutorE
       return Number.isInteger(index) && index >= 0 ? evidence[index] : undefined
     })
     .filter((item): item is TutorEvidence => Boolean(item))
+}
+
+type TutorProviderBlockReason = 'prompt_risk' | TutorQuotaBlockReason
+
+type GuardrailDraft = {
+  eventType: 'prompt_risk' | 'quota_block'
+  reasonCode: string
+  riskFlags: string[]
+  policyId?: string | null
 }
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
@@ -120,10 +135,46 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   let answerText = fallback.text
   let answerEvidence = evidence
   let provider: string | null = null
+  let providerBlockedReason: TutorProviderBlockReason | null = null
+  let reservationId: string | null = null
+  let guardrail: GuardrailDraft | null = null
 
   if (externalGenerationRequested && generativeAuthorized && evidence.length > 0) {
-    providerResult = await runTutorProvider(env, question, evidence)
-    if (providerResult.outcome === 'success' && providerResult.answer) {
+    const risk = assessTutorPromptRisk(question, evidence)
+    if (risk.blockProvider) {
+      providerBlockedReason = 'prompt_risk'
+      guardrail = {
+        eventType: 'prompt_risk',
+        reasonCode: 'external_generation_prompt_risk',
+        riskFlags: risk.flags,
+      }
+    } else if (runtime.configured) {
+      const projectedRequestChars = JSON.stringify(buildTutorProviderEnvelope(question, evidence)).length
+      const quota = await reserveTutorUsage(db, {
+        tenantId: auth.tenantId,
+        courseId,
+        studentId: auth.userId,
+        projectedRequestChars,
+      })
+      if (!quota.allowed || !quota.reservationId) {
+        providerBlockedReason = quota.reason ?? 'quota_concurrency_block'
+        guardrail = {
+          eventType: 'quota_block',
+          reasonCode: providerBlockedReason,
+          riskFlags: [],
+          policyId: quota.blockedPolicy?.policy.id ?? null,
+        }
+      } else {
+        reservationId = quota.reservationId
+        providerResult = await runTutorProvider(env, question, evidence)
+      }
+    } else {
+      // Mantém a telemetria de configuração da v0.58 sem criar reserva/custo,
+      // pois nenhuma chamada externa é realizada quando o runtime não está configurado.
+      providerResult = await runTutorProvider(env, question, evidence)
+    }
+
+    if (providerResult?.outcome === 'success' && providerResult.answer) {
       answerMode = 'provider_generated'
       answerText = providerResult.answer
       answerEvidence = citedEvidence(evidence, providerResult.citationIds)
@@ -158,13 +209,22 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     `).bind(crypto.randomUUID(), auth.tenantId, sessionId, auth.userId, answerMode, answerText, JSON.stringify(citations), provider, now),
   )
 
+  if (reservationId) {
+    statements.push(finalizeTutorUsageReservationStatement(
+      db,
+      reservationId,
+      providerResult?.attempted ? 'consumed' : 'released',
+      now,
+    ))
+  }
+
   if (providerResult) {
     statements.push(db.prepare(`
       INSERT INTO academy_tutor_provider_events (
         id, tenant_id, session_id, student_id, course_id, provider_mode, outcome,
         latency_ms, evidence_count, citation_count, request_chars, response_chars,
-        fallback_reason, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        fallback_reason, created_at, reservation_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       crypto.randomUUID(),
       auth.tenantId,
@@ -179,6 +239,30 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
       providerResult.requestChars,
       providerResult.responseChars,
       providerResult.fallbackReason ?? null,
+      now,
+      providerResult.outcome === 'config_error' ? null : reservationId,
+    ))
+  }
+
+  if (guardrail) {
+    statements.push(db.prepare(`
+      INSERT INTO academy_tutor_guardrail_events (
+        id, tenant_id, session_id, student_id, course_id, event_type,
+        reason_code, risk_flags_json, policy_id, provider_blocked,
+        question_chars, evidence_count, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+    `).bind(
+      crypto.randomUUID(),
+      auth.tenantId,
+      sessionId,
+      auth.userId,
+      courseId,
+      guardrail.eventType,
+      guardrail.reasonCode,
+      JSON.stringify(guardrail.riskFlags),
+      guardrail.policyId ?? null,
+      question.length,
+      evidence.length,
       now,
     ))
   }
@@ -196,9 +280,10 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
       providerMode: runtime.mode,
       providerAttempted: providerResult?.attempted ?? false,
       providerOutcome: providerResult?.outcome ?? null,
+      providerBlockedReason,
       generativeAuthorized,
       externalGenerationRequested,
-      fallbackUsed: Boolean(providerResult && providerResult.outcome !== 'success'),
+      fallbackUsed: Boolean(providerBlockedReason || (providerResult && providerResult.outcome !== 'success')),
     },
   })
 }
