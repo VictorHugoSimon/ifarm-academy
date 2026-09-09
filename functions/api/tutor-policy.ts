@@ -1,6 +1,7 @@
 import { auditStatement } from './_audit'
 import { requireAdminContext } from './_auth'
 import { purgeTutorIndex, rebuildTutorIndex } from './_tutorIndex'
+import { tutorProviderRuntimeStatus } from './_tutorProvider'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 const readerRoles = ['academy_admin', 'academy_instructor', 'instructor', 'ifarm_admin']
@@ -15,9 +16,11 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   if (!courseId) return json({ error: 'courseId é obrigatório' }, 400)
 
   const row = await db.prepare(`
-    SELECT c.id AS course_id, c.title AS course_title, c.status AS course_status,
+    SELECT c.id AS course_id, c.title AS course_title, c.status AS course_status, c.updated_at AS course_updated_at,
            p.enabled, p.approved_by, p.approved_at, p.disabled_at,
            p.last_indexed_at, p.last_indexed_course_updated_at,
+           p.generative_enabled, p.generative_approved_by, p.generative_approved_at,
+           p.generative_approved_course_updated_at, p.generative_disabled_at,
            (SELECT COUNT(*) FROM academy_tutor_source_chunks sc
              WHERE sc.tenant_id=c.tenant_id AND sc.course_id=c.id) AS chunk_count
     FROM academy_courses c
@@ -28,6 +31,13 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
   `).bind(auth.tenantId, courseId).first()
 
   if (!row) return json({ error: 'Curso não encontrado neste tenant' }, 404)
+  const runtime = tutorProviderRuntimeStatus(env)
+  const generationMatchesCurrentCourse = Boolean(
+    row.generative_approved_course_updated_at
+    && row.course_updated_at
+    && String(row.generative_approved_course_updated_at) === String(row.course_updated_at),
+  )
+
   return json({ data: {
     courseId: row.course_id,
     courseTitle: row.course_title,
@@ -39,6 +49,13 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     lastIndexedAt: row.last_indexed_at ?? null,
     lastIndexedCourseUpdatedAt: row.last_indexed_course_updated_at ?? null,
     chunkCount: Number(row.chunk_count ?? 0),
+    generativeEnabled: Number(row.generative_enabled ?? 0) === 1 && generationMatchesCurrentCourse,
+    generativeApprovedBy: row.generative_approved_by ?? null,
+    generativeApprovedAt: row.generative_approved_at ?? null,
+    generativeApprovedCourseUpdatedAt: row.generative_approved_course_updated_at ?? null,
+    generativeDisabledAt: row.generative_disabled_at ?? null,
+    generationMatchesCurrentCourse,
+    providerRuntime: runtime,
   }})
 }
 

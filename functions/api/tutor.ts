@@ -1,9 +1,30 @@
 import { requireTrustedContext } from './_auth'
 import { evidenceOnlyMessage, scoreTutorEvidence, type TutorEvidence } from './_tutor'
+import { runTutorProvider, tutorProviderRuntimeStatus, type TutorProviderResult } from './_tutorProvider'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 function clampQuestion(value: unknown): string {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, 2000) : ''
+}
+
+function citationFromEvidence(item: TutorEvidence) {
+  return {
+    chunkId: item.id,
+    lessonId: item.lessonId,
+    lessonTitle: item.sourceTitle,
+    sourceType: item.sourceType,
+    excerpt: item.text.slice(0, 700),
+    score: item.score,
+  }
+}
+
+function citedEvidence(evidence: TutorEvidence[], citationIds: string[]): TutorEvidence[] {
+  return citationIds
+    .map((id) => {
+      const index = Number(id.replace(/^S/, '')) - 1
+      return Number.isInteger(index) && index >= 0 ? evidence[index] : undefined
+    })
+    .filter((item): item is TutorEvidence => Boolean(item))
 }
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
@@ -32,6 +53,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   const courseId = String(body.courseId ?? '').trim()
   const question = clampQuestion(body.question)
   const requestedSessionId = String(body.sessionId ?? '').trim()
+  const externalGenerationRequested = body.allowExternalGeneration === true
   if (!courseId || question.length < 3) return json({ error: 'courseId e question são obrigatórios' }, 400)
 
   const enrollment = await db.prepare(`
@@ -42,7 +64,10 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   if (!enrollment) return json({ error: 'Matrícula ativa ou concluída é obrigatória para usar o Tutor neste curso' }, 403)
 
   const course = await db.prepare(`
-    SELECT c.id, c.title, c.status, p.enabled AS tutor_enabled
+    SELECT c.id, c.title, c.status, c.updated_at,
+           p.enabled AS tutor_enabled,
+           p.generative_enabled,
+           p.generative_approved_course_updated_at
     FROM academy_courses c
     LEFT JOIN academy_tutor_course_policies p
       ON p.tenant_id=c.tenant_id AND p.course_id=c.id
@@ -53,6 +78,10 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   if (Number(course.tutor_enabled ?? 0) !== 1) {
     return json({ error: 'O Tutor IA não está autorizado para este curso' }, 403)
   }
+
+  const generativeAuthorized = Number(course.generative_enabled ?? 0) === 1
+    && Boolean(course.generative_approved_course_updated_at)
+    && String(course.generative_approved_course_updated_at) === String(course.updated_at)
 
   let sessionId = requestedSessionId
   if (sessionId) {
@@ -83,17 +112,27 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     text: String(row.content_text),
   }))
   const evidence = scoreTutorEvidence(question, candidates).slice(0, 5)
-  const answer = evidenceOnlyMessage(evidence)
-  const now = new Date().toISOString()
-  const citations = evidence.map((item) => ({
-    chunkId: item.id,
-    lessonId: item.lessonId,
-    lessonTitle: item.sourceTitle,
-    sourceType: item.sourceType,
-    excerpt: item.text.slice(0, 700),
-    score: item.score,
-  }))
+  const fallback = evidenceOnlyMessage(evidence)
+  const runtime = tutorProviderRuntimeStatus(env)
 
+  let providerResult: TutorProviderResult | null = null
+  let answerMode: 'evidence_only' | 'insufficient_context' | 'provider_generated' = fallback.mode
+  let answerText = fallback.text
+  let answerEvidence = evidence
+  let provider: string | null = null
+
+  if (externalGenerationRequested && generativeAuthorized && evidence.length > 0) {
+    providerResult = await runTutorProvider(env, question, evidence)
+    if (providerResult.outcome === 'success' && providerResult.answer) {
+      answerMode = 'provider_generated'
+      answerText = providerResult.answer
+      answerEvidence = citedEvidence(evidence, providerResult.citationIds)
+      provider = runtime.mode
+    }
+  }
+
+  const now = new Date().toISOString()
+  const citations = answerEvidence.map(citationFromEvidence)
   const statements: any[] = []
   if (!requestedSessionId) {
     statements.push(db.prepare(`
@@ -115,9 +154,34 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     db.prepare(`
       INSERT INTO academy_tutor_messages (
         id, tenant_id, session_id, student_id, role, mode, content_text, citations_json, provider, created_at
-      ) VALUES (?, ?, ?, ?, 'assistant', ?, ?, ?, NULL, ?)
-    `).bind(crypto.randomUUID(), auth.tenantId, sessionId, auth.userId, answer.mode, answer.text, JSON.stringify(citations), now),
+      ) VALUES (?, ?, ?, ?, 'assistant', ?, ?, ?, ?, ?)
+    `).bind(crypto.randomUUID(), auth.tenantId, sessionId, auth.userId, answerMode, answerText, JSON.stringify(citations), provider, now),
   )
+
+  if (providerResult) {
+    statements.push(db.prepare(`
+      INSERT INTO academy_tutor_provider_events (
+        id, tenant_id, session_id, student_id, course_id, provider_mode, outcome,
+        latency_ms, evidence_count, citation_count, request_chars, response_chars,
+        fallback_reason, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      crypto.randomUUID(),
+      auth.tenantId,
+      sessionId,
+      auth.userId,
+      courseId,
+      runtime.mode,
+      providerResult.outcome,
+      providerResult.latencyMs,
+      evidence.length,
+      providerResult.citationIds.length,
+      providerResult.requestChars,
+      providerResult.responseChars,
+      providerResult.fallbackReason ?? null,
+      now,
+    ))
+  }
 
   await db.batch(statements)
   return json({
@@ -125,10 +189,16 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
       sessionId,
       courseId,
       courseTitle: course.title,
-      mode: answer.mode,
-      answer: answer.text,
+      mode: answerMode,
+      answer: answerText,
       citations,
-      providerConfigured: false,
+      providerConfigured: runtime.configured,
+      providerMode: runtime.mode,
+      providerAttempted: providerResult?.attempted ?? false,
+      providerOutcome: providerResult?.outcome ?? null,
+      generativeAuthorized,
+      externalGenerationRequested,
+      fallbackUsed: Boolean(providerResult && providerResult.outcome !== 'success'),
     },
   })
 }
