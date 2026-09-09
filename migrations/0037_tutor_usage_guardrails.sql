@@ -47,6 +47,29 @@ WHERE status='active';
 CREATE INDEX IF NOT EXISTS idx_tutor_usage_policy_tenant_status
 ON academy_tutor_usage_policies(tenant_id, status, scope_type, period, created_at DESC);
 
+CREATE TABLE IF NOT EXISTS academy_tutor_usage_reservations (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  course_id TEXT NOT NULL,
+  request_chars INTEGER NOT NULL CHECK(request_chars > 0),
+  status TEXT NOT NULL DEFAULT 'reserved' CHECK(status IN ('reserved','consumed','released')),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  finalized_at TEXT,
+  FOREIGN KEY(course_id) REFERENCES academy_courses(id) ON DELETE CASCADE,
+  CHECK(
+    (status='reserved' AND finalized_at IS NULL)
+    OR (status IN ('consumed','released') AND finalized_at IS NOT NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_tutor_usage_reservations_active
+ON academy_tutor_usage_reservations(tenant_id, status, expires_at, course_id, student_id);
+
+ALTER TABLE academy_tutor_provider_events
+ADD COLUMN reservation_id TEXT;
+
 CREATE TABLE IF NOT EXISTS academy_tutor_guardrail_events (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL,
@@ -117,6 +140,147 @@ BEGIN
   SELECT RAISE(ABORT, 'tutor_usage_policy_delete_forbidden');
 END;
 
+CREATE TRIGGER IF NOT EXISTS trg_tutor_usage_reservation_scope_insert
+BEFORE INSERT ON academy_tutor_usage_reservations
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_courses c
+    WHERE c.id=NEW.course_id AND c.tenant_id=NEW.tenant_id AND c.status='published'
+  ) THEN RAISE(ABORT, 'tutor_usage_reservation_invalid_course') END;
+
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_enrollments e
+    WHERE e.tenant_id=NEW.tenant_id
+      AND e.course_id=NEW.course_id
+      AND e.student_id=NEW.student_id
+      AND e.status IN ('active','completed')
+  ) THEN RAISE(ABORT, 'tutor_usage_reservation_invalid_student') END;
+
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_tutor_usage_policies p
+    WHERE p.tenant_id=NEW.tenant_id
+      AND p.scope_type='tenant'
+      AND p.status='active'
+  ) THEN RAISE(ABORT, 'tutor_usage_tenant_policy_required') END;
+
+  SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM academy_tutor_usage_policies p
+    WHERE p.tenant_id=NEW.tenant_id
+      AND p.status='active'
+      AND (
+        p.scope_type='tenant'
+        OR (p.scope_type='course' AND p.scope_id=NEW.course_id)
+        OR (p.scope_type='student' AND p.scope_id=NEW.student_id)
+      )
+      AND p.max_provider_requests IS NOT NULL
+      AND (
+        (
+          SELECT COUNT(*) FROM academy_tutor_provider_events e
+          WHERE e.tenant_id=NEW.tenant_id
+            AND e.outcome<>'config_error'
+            AND e.created_at >= CASE p.period
+              WHEN 'month' THEN substr(NEW.created_at,1,7) || '-01T00:00:00.000Z'
+              ELSE substr(NEW.created_at,1,10) || 'T00:00:00.000Z'
+            END
+            AND (
+              p.scope_type='tenant'
+              OR (p.scope_type='course' AND e.course_id=p.scope_id)
+              OR (p.scope_type='student' AND e.student_id=p.scope_id)
+            )
+        )
+        +
+        (
+          SELECT COUNT(*) FROM academy_tutor_usage_reservations r
+          WHERE r.tenant_id=NEW.tenant_id
+            AND r.status='reserved'
+            AND r.expires_at>NEW.created_at
+            AND r.created_at >= CASE p.period
+              WHEN 'month' THEN substr(NEW.created_at,1,7) || '-01T00:00:00.000Z'
+              ELSE substr(NEW.created_at,1,10) || 'T00:00:00.000Z'
+            END
+            AND (
+              p.scope_type='tenant'
+              OR (p.scope_type='course' AND r.course_id=p.scope_id)
+              OR (p.scope_type='student' AND r.student_id=p.scope_id)
+            )
+        )
+        + 1
+      ) > p.max_provider_requests
+  ) THEN RAISE(ABORT, 'tutor_usage_provider_requests_limit') END;
+
+  SELECT CASE WHEN EXISTS (
+    SELECT 1
+    FROM academy_tutor_usage_policies p
+    WHERE p.tenant_id=NEW.tenant_id
+      AND p.status='active'
+      AND (
+        p.scope_type='tenant'
+        OR (p.scope_type='course' AND p.scope_id=NEW.course_id)
+        OR (p.scope_type='student' AND p.scope_id=NEW.student_id)
+      )
+      AND p.max_request_chars IS NOT NULL
+      AND (
+        COALESCE((
+          SELECT SUM(e.request_chars) FROM academy_tutor_provider_events e
+          WHERE e.tenant_id=NEW.tenant_id
+            AND e.outcome<>'config_error'
+            AND e.created_at >= CASE p.period
+              WHEN 'month' THEN substr(NEW.created_at,1,7) || '-01T00:00:00.000Z'
+              ELSE substr(NEW.created_at,1,10) || 'T00:00:00.000Z'
+            END
+            AND (
+              p.scope_type='tenant'
+              OR (p.scope_type='course' AND e.course_id=p.scope_id)
+              OR (p.scope_type='student' AND e.student_id=p.scope_id)
+            )
+        ),0)
+        +
+        COALESCE((
+          SELECT SUM(r.request_chars) FROM academy_tutor_usage_reservations r
+          WHERE r.tenant_id=NEW.tenant_id
+            AND r.status='reserved'
+            AND r.expires_at>NEW.created_at
+            AND r.created_at >= CASE p.period
+              WHEN 'month' THEN substr(NEW.created_at,1,7) || '-01T00:00:00.000Z'
+              ELSE substr(NEW.created_at,1,10) || 'T00:00:00.000Z'
+            END
+            AND (
+              p.scope_type='tenant'
+              OR (p.scope_type='course' AND r.course_id=p.scope_id)
+              OR (p.scope_type='student' AND r.student_id=p.scope_id)
+            )
+        ),0)
+        + NEW.request_chars
+      ) > p.max_request_chars
+  ) THEN RAISE(ABORT, 'tutor_usage_request_chars_limit') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tutor_usage_reservation_update_guard
+BEFORE UPDATE ON academy_tutor_usage_reservations
+BEGIN
+  SELECT CASE WHEN OLD.status<>'reserved' OR NEW.status NOT IN ('consumed','released')
+    THEN RAISE(ABORT, 'tutor_usage_reservation_invalid_transition') END;
+
+  SELECT CASE WHEN NEW.id IS NOT OLD.id
+    OR NEW.tenant_id IS NOT OLD.tenant_id
+    OR NEW.student_id IS NOT OLD.student_id
+    OR NEW.course_id IS NOT OLD.course_id
+    OR NEW.request_chars IS NOT OLD.request_chars
+    OR NEW.created_at IS NOT OLD.created_at
+    OR NEW.expires_at IS NOT OLD.expires_at
+    THEN RAISE(ABORT, 'tutor_usage_reservation_identity_immutable') END;
+
+  SELECT CASE WHEN NEW.finalized_at IS NULL
+    THEN RAISE(ABORT, 'tutor_usage_reservation_finalized_at_required') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tutor_usage_reservation_delete_guard
+BEFORE DELETE ON academy_tutor_usage_reservations
+BEGIN
+  SELECT RAISE(ABORT, 'tutor_usage_reservation_delete_forbidden');
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_tutor_guardrail_scope_insert
 BEFORE INSERT ON academy_tutor_guardrail_events
 BEGIN
@@ -148,8 +312,8 @@ BEGIN
   SELECT RAISE(ABORT, 'tutor_guardrail_event_immutable');
 END;
 
--- A chamada externa real só pode gerar telemetria de provider quando existe
--- ao menos uma política ativa de tenant. config_error não representa transporte externo.
+-- Toda tentativa externa real deve estar associada a uma reserva de quota já consumida.
+-- config_error permanece sem reserva porque nenhum transporte externo aconteceu.
 CREATE TRIGGER IF NOT EXISTS trg_tutor_provider_requires_tenant_quota
 BEFORE INSERT ON academy_tutor_provider_events
 WHEN NEW.outcome<>'config_error'
@@ -160,4 +324,14 @@ BEGIN
       AND p.scope_type='tenant'
       AND p.status='active'
   ) THEN RAISE(ABORT, 'tutor_provider_requires_tenant_usage_policy') END;
+
+  SELECT CASE WHEN NEW.reservation_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM academy_tutor_usage_reservations r
+    WHERE r.id=NEW.reservation_id
+      AND r.tenant_id=NEW.tenant_id
+      AND r.student_id=NEW.student_id
+      AND r.course_id=NEW.course_id
+      AND r.request_chars=NEW.request_chars
+      AND r.status='consumed'
+  ) THEN RAISE(ABORT, 'tutor_provider_requires_consumed_reservation') END;
 END;
