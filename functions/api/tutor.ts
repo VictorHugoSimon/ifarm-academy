@@ -94,6 +94,8 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     score: item.score,
   }))
 
+  const userMessageId = crypto.randomUUID()
+  const assistantMessageId = crypto.randomUUID()
   const statements: any[] = []
   if (!requestedSessionId) {
     statements.push(db.prepare(`
@@ -111,18 +113,19 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
       INSERT INTO academy_tutor_messages (
         id, tenant_id, session_id, student_id, role, mode, content_text, citations_json, provider, created_at
       ) VALUES (?, ?, ?, ?, 'user', 'user_input', ?, '[]', NULL, ?)
-    `).bind(crypto.randomUUID(), auth.tenantId, sessionId, auth.userId, question, now),
+    `).bind(userMessageId, auth.tenantId, sessionId, auth.userId, question, now),
     db.prepare(`
       INSERT INTO academy_tutor_messages (
         id, tenant_id, session_id, student_id, role, mode, content_text, citations_json, provider, created_at
       ) VALUES (?, ?, ?, ?, 'assistant', ?, ?, ?, NULL, ?)
-    `).bind(crypto.randomUUID(), auth.tenantId, sessionId, auth.userId, answer.mode, answer.text, JSON.stringify(citations), now),
+    `).bind(assistantMessageId, auth.tenantId, sessionId, auth.userId, answer.mode, answer.text, JSON.stringify(citations), now),
   )
 
   await db.batch(statements)
   return json({
     data: {
       sessionId,
+      assistantMessageId,
       courseId,
       courseTitle: course.title,
       mode: answer.mode,
