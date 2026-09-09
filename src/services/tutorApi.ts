@@ -30,6 +30,7 @@ export interface TutorAnswer {
   providerAttempted: boolean
   providerOutcome?: 'success' | 'config_error' | 'timeout' | 'network_error' | 'provider_error' | 'invalid_response' | null
   generativeAuthorized: boolean
+  externalGenerationRequested: boolean
   fallbackUsed: boolean
 }
 
@@ -64,7 +65,12 @@ export async function loadTutorSessions(): Promise<TutorSessionSummary[]> {
   return result.data
 }
 
-export async function askTutor(input: { courseId: string; question: string; sessionId?: string }): Promise<TutorAnswer> {
+export async function askTutor(input: {
+  courseId: string
+  question: string
+  sessionId?: string
+  allowExternalGeneration?: boolean
+}): Promise<TutorAnswer> {
   const result = await authenticatedJson<{ data: TutorAnswer }>('/api/tutor', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
