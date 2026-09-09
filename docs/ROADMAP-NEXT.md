@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.60
+## Concluído até v0.61
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -16,7 +16,7 @@
 - Gamificação foundation e Notification Center in-app.
 - Lockfile íntegro e CI determinístico com `npm ci`.
 - Pipeline Cloudflare STAGE/PRODUCTION com isolamento de recursos e contratos de smoke/deploy.
-- AI Tutor v0.56–v0.60:
+- AI Tutor v0.56–v0.61:
   - fontes acadêmicas autorizadas e tenant/enrollment isolation;
   - governança explícita de conteúdo;
   - `evidence_only` e `insufficient_context` fail-safe;
@@ -27,19 +27,20 @@
   - reservas atômicas contra concorrência;
   - guardrails de prompt injection e painel operacional;
   - resumos, flashcards e exercícios de prática grounded em fontes autorizadas;
-  - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado.
-- 37 migrations versionadas e fixtures D1-compatible por módulo na v0.60.
+  - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado;
+  - Learning Signals calculados on-demand a partir de progresso/aulas/tentativas do ciclo;
+  - recomendações acadêmicas sem diagnóstico, score de capacidade, provider externo ou perfilamento comercial.
+- 37 migrations versionadas e fixtures D1-compatible por módulo na v0.61.
 
 ## Próximas prioridades
-1. **v0.61 — Tutor Learning Signals:** recomendações de estudo e sinais de dificuldade derivados de comportamento acadêmico permitido, sem diagnóstico indevido nem perfilamento comercial automático.
-2. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
-3. **Checkout/Mercado Pago:** cursos, trilhas, planos, eventos e marketplace após validação comercial/fiscal; nenhum entitlement antes de confirmação confiável.
-4. **Subscriptions & entitlements:** ativação, renovação e cancelamento por eventos confiáveis de pagamento/contrato.
-5. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
-6. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core; hoje apenas capabilities foram encontradas.
-7. **Portal avançado:** busca enriquecida, recomendações consentidas, parceiros e bundles.
-8. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
-9. **Homologação e promoção:** executar matriz STAGE, corrigir findings e somente depois promover `main`/produção.
+1. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
+2. **Checkout/Mercado Pago:** cursos, trilhas, planos, eventos e marketplace após validação comercial/fiscal; nenhum entitlement antes de confirmação confiável.
+3. **Subscriptions & entitlements:** ativação, renovação e cancelamento por eventos confiáveis de pagamento/contrato.
+4. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
+5. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core; hoje apenas capabilities foram encontradas.
+6. **Portal avançado:** busca enriquecida, recomendações consentidas, parceiros e bundles.
+7. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
+8. **Homologação e promoção:** executar matriz STAGE, corrigir findings e somente depois promover `main`/produção.
 
 ## Governança
 - `develop` continua linha de integração; promoção para `stage`/`main` exige homologação e gates próprios.
@@ -55,6 +56,7 @@
 - Guardrails armazenam códigos/flags e métricas, nunca prompt bruto como telemetria operacional.
 - Nenhum conteúdo técnico ausente nas fontes pode ser completado como fato pelo Tutor.
 - Learning Tools são materiais de estudo e não escrevem em avaliação, nota, progresso, conclusão ou certificado.
+- Learning Signals são efêmeros/read-only e não podem ser reutilizados para diagnóstico ou perfil comercial automático.
 - Evento pago não gera inscrição/entitlement sem confirmação de checkout.
 - Marketplace não assume percentual, split, repasse ou regra fiscal; tudo deve ser explícito/versionado.
 - White Label não executa CSS/HTML arbitrário nem provisiona DNS automaticamente.
