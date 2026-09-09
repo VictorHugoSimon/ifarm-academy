@@ -5,6 +5,7 @@ import {
   type TutorLearningToolResult,
   type TutorLearningToolType,
 } from '../services/tutorLearningToolsApi'
+import '../styles/tutor-learning-tools.css'
 
 type Props = {
   courseId: string
