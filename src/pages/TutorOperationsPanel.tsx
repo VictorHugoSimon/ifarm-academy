@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   archiveTutorUsagePolicy,
   loadTutorOperations,
@@ -23,11 +23,6 @@ export function TutorOperationsPanel({ courses }: { courses: Array<{ id: string;
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
 
-  const activePolicyIds = useMemo(
-    () => new Set(operations?.activePolicies.map((item) => item.policy.id) ?? []),
-    [operations],
-  )
-
   async function refresh(nextDays = days) {
     const [ops, policies] = await Promise.all([
       loadTutorOperations(nextDays),
@@ -43,7 +38,6 @@ export function TutorOperationsPanel({ courses }: { courses: Array<{ id: string;
 
   useEffect(() => {
     if (scopeType === 'course' && !scopeId && courses[0]) setScopeId(courses[0].id)
-    if (scopeType === 'tenant') setScopeId('')
   }, [scopeType, courses, scopeId])
 
   async function publishPolicy(event: React.FormEvent) {
@@ -136,7 +130,10 @@ export function TutorOperationsPanel({ courses }: { courses: Array<{ id: string;
           <p className="tutorHint">Não existe quota padrão. A geração externa exige ao menos uma política ativa no escopo do tenant.</p>
           <label>
             Escopo
-            <select value={scopeType} onChange={(event) => setScopeType(event.target.value as TutorQuotaScope)}>
+            <select value={scopeType} onChange={(event) => {
+              setScopeType(event.target.value as TutorQuotaScope)
+              setScopeId('')
+            }}>
               <option value="tenant">Tenant inteiro</option>
               <option value="course">Curso</option>
               <option value="student">Aluno</option>
