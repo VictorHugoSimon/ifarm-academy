@@ -16,6 +16,11 @@ export interface Env {
   ACADEMY_RATE_LIMIT_WRITE_PER_MINUTE?: string
   ACADEMY_PUBLIC_DEFAULT_HOST?: string
   ACADEMY_PUBLIC_DEFAULT_TENANT_ID?: string
+  ACADEMY_TUTOR_PROVIDER_MODE?: string
+  ACADEMY_TUTOR_PROVIDER_URL?: string
+  ACADEMY_TUTOR_PROVIDER_TOKEN?: string
+  ACADEMY_TUTOR_PROVIDER_TIMEOUT_MS?: string
+  ACADEMY_TUTOR_PROVIDER_MAX_OUTPUT_CHARS?: string
 }
 
 export function json(data: unknown, status = 200): Response {
