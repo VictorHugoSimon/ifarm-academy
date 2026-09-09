@@ -13,6 +13,7 @@ import {
   type TutorPolicyStatus,
   type TutorSessionSummary,
 } from '../services/tutorApi'
+import { TutorLearningToolsPanel } from '../components/TutorLearningToolsPanel'
 import { TutorOperationsPanel } from './TutorOperationsPanel'
 import '../styles/tutor.css'
 
@@ -241,7 +242,7 @@ export function TutorPage() {
           )}
 
           {selected?.source === 'admin' && (
-            <p className="tutorHint">A autorização administrativa não substitui matrícula. Para fazer perguntas, a identidade atual também precisa estar matriculada no curso.</p>
+            <p className="tutorHint">A autorização administrativa não substitui matrícula. Para fazer perguntas ou gerar ferramentas de estudo, a identidade atual também precisa estar matriculada no curso.</p>
           )}
 
           <div className="tutorHistory">
@@ -319,6 +320,7 @@ export function TutorPage() {
         </div>
       </div>
 
+      {courseId && <TutorLearningToolsPanel courseId={courseId} courseTitle={selected?.title} />}
       {academyAdmin && <TutorOperationsPanel courses={courses.map(({ id, title }) => ({ id, title }))} />}
     </section>
   )
