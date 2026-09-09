@@ -13,6 +13,7 @@ import {
   type TutorPolicyStatus,
   type TutorSessionSummary,
 } from '../services/tutorApi'
+import { TutorOperationsPanel } from './TutorOperationsPanel'
 import '../styles/tutor.css'
 
 type CourseOption = {
@@ -80,7 +81,7 @@ export function TutorPage() {
     if (!courseId || text.length < 3) return
     setBusy(true)
     setStatus(allowExternalGeneration
-      ? 'Consultando conteúdo autorizado; geração externa só será usada se o curso também estiver autorizado.'
+      ? 'Consultando conteúdo autorizado; geração externa só será usada se curso, política de uso e guardrails permitirem.'
       : 'Consultando somente conteúdo autorizado do curso em modo evidence-only...')
     try {
       const result = await askTutor({
@@ -92,7 +93,14 @@ export function TutorPage() {
       setAnswer(result)
       setSessionId(result.sessionId)
       setQuestion('')
-      if (result.mode === 'provider_generated') {
+
+      if (result.providerBlockedReason === 'prompt_risk') {
+        setStatus('Geração externa bloqueada por política de segurança; o Tutor manteve somente evidências autorizadas.')
+      } else if (result.providerBlockedReason === 'tenant_quota_not_configured') {
+        setStatus('Geração externa bloqueada até existir uma política de uso aprovada para este tenant; mantido evidence-only.')
+      } else if (result.providerBlockedReason) {
+        setStatus('Geração externa não executada por limite operacional de uso; o conteúdo evidence-only continua disponível.')
+      } else if (result.mode === 'provider_generated') {
         setStatus('Resposta gerada pelo provider autorizado e validada contra as citações do curso.')
       } else if (result.mode === 'evidence_only') {
         setStatus(result.fallbackUsed
@@ -149,7 +157,7 @@ export function TutorPage() {
       setAnswer(null)
       setSessionId(undefined)
       setStatus(enabled
-        ? 'Geração externa autorizada somente para a versão publicada atual e com citações obrigatórias.'
+        ? 'Geração externa autorizada para a versão publicada atual. O uso ainda depende de quota explícita, guardrails e consentimento por pergunta.'
         : 'Geração externa desativada. O Tutor permanece em evidence-only.')
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Não foi possível alterar a autorização generativa.')
@@ -187,7 +195,7 @@ export function TutorPage() {
         <div>
           <small>iFarm Academy AI Tutor</small>
           <h2>Tutor baseado em conteúdo autorizado</h2>
-          <p>O fallback permanente é <strong>evidence-only</strong>. Geração externa só ocorre com autorização administrativa da versão publicada, provider server-side configurado e autorização do aluno na pergunta atual.</p>
+          <p>O fallback permanente é <strong>evidence-only</strong>. Geração externa só ocorre com autorização administrativa da versão publicada, provider server-side configurado, política explícita de uso, guardrails liberados e autorização do aluno na pergunta atual.</p>
         </div>
         <button type="button" className="secondaryButton" onClick={newConversation}>Nova conversa</button>
       </header>
@@ -257,7 +265,7 @@ export function TutorPage() {
         <div className="tutorConversation">
           <div className="tutorSafetyNotice">
             <strong>Regra de segurança</strong>
-            <span>Publicado não significa autorizado para IA, e autorização do Tutor não significa autorização para provider externo. Sem fonte válida, o Tutor não completa lacunas.</span>
+            <span>Publicado não significa autorizado para IA, e autorização do Tutor não significa autorização para provider externo. Sem fonte válida, sem quota explícita ou diante de risco de prompt, o Tutor não completa lacunas e não chama o provider.</span>
           </div>
 
           {answer && (
@@ -268,6 +276,9 @@ export function TutorPage() {
                   ? 'Evidências encontradas'
                   : 'Contexto insuficiente'}</small>
               <p>{answer.answer}</p>
+              {answer.providerBlockedReason && (
+                <p className="tutorHint">Geração externa não executada; o fallback seguro permaneceu ativo.</p>
+              )}
               {answer.providerAttempted && answer.providerOutcome !== 'success' && (
                 <p className="tutorHint">Fallback de segurança aplicado: {answer.providerOutcome}.</p>
               )}
@@ -298,7 +309,7 @@ export function TutorPage() {
                 checked={allowExternalGeneration}
                 onChange={(event) => setAllowExternalGeneration(event.target.checked)}
               />
-              <span>Permitir geração externa nesta pergunta, quando o curso/versão estiver autorizado. A pergunta e trechos autorizados podem ser enviados ao gateway; e-mail, CPF e telefone são redigidos em best-effort antes do envio.</span>
+              <span>Permitir geração externa nesta pergunta, quando o curso/versão estiver autorizado. A pergunta e trechos autorizados podem ser enviados ao gateway somente se políticas de uso e guardrails também permitirem; e-mail, CPF e telefone são redigidos em best-effort antes do envio.</span>
             </label>
             <div className="tutorComposerFooter">
               <span>{status}</span>
@@ -307,6 +318,8 @@ export function TutorPage() {
           </form>
         </div>
       </div>
+
+      {academyAdmin && <TutorOperationsPanel courses={courses.map(({ id, title }) => ({ id, title }))} />}
     </section>
   )
 }
