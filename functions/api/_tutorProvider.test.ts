@@ -73,6 +73,14 @@ describe('Tutor provider boundary', () => {
     expect(validateTutorProviderResponse({ grounded: false, answer: 'Não sei.', citations: [] }, ['S1'])).toMatchObject({ valid: false, reason: 'provider_not_grounded' })
   })
 
+  it('rejeita parágrafo factual sem citação mesmo quando outro parágrafo está citado', () => {
+    expect(validateTutorProviderResponse({
+      grounded: true,
+      answer: 'A pressão deve ser verificada [S1].\nA vazão também deve ser observada.',
+      citations: ['S1'],
+    }, ['S1'])).toMatchObject({ valid: false, reason: 'uncited_paragraph' })
+  })
+
   it('chama gateway sem PII estrutural e aceita resposta válida', async () => {
     const fetcher = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
       const body = String(init?.body ?? '')
