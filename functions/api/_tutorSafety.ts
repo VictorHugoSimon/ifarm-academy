@@ -27,8 +27,8 @@ const RULES: Array<{ flag: TutorPromptRiskFlag; patterns: RegExp[] }> = [
     patterns: [
       /ignore (all |the )?(previous|prior|system|developer) (instructions?|rules?)/,
       /disregard (all |the )?(previous|prior|system|developer) (instructions?|rules?)/,
-      /ignore (as |todas )?(instrucoes|regras) (anteriores|previas|do sistema)/,
-      /desconsidere (as |todas )?(instrucoes|regras) (anteriores|previas|do sistema)/,
+      /ignore (as |todas |todas as )?(instrucoes|regras) (anteriores|previas|do sistema)/,
+      /desconsidere (as |todas |todas as )?(instrucoes|regras) (anteriores|previas|do sistema)/,
       /sobrescreva (as )?(regras|instrucoes)/,
       /override (the )?(rules|instructions)/,
     ],
