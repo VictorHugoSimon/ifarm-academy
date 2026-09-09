@@ -2,10 +2,24 @@ import { useEffect, useMemo, useState } from 'react'
 import { useAcademySession } from '../session/AcademySessionContext'
 import { listCourses } from '../services/courseBuilderApi'
 import { loadMyEnrollments } from '../services/enrollmentApi'
-import { askTutor, loadTutorSessions, rebuildTutorSources, type TutorAnswer, type TutorSessionSummary } from '../services/tutorApi'
+import {
+  askTutor,
+  loadTutorPolicy,
+  loadTutorSessions,
+  rebuildTutorSources,
+  setTutorPolicy,
+  type TutorAnswer,
+  type TutorPolicyStatus,
+  type TutorSessionSummary,
+} from '../services/tutorApi'
 import '../styles/tutor.css'
 
-type CourseOption = { id: string; title: string; source: 'enrollment' | 'admin' }
+type CourseOption = {
+  id: string
+  title: string
+  source: 'enrollment' | 'admin'
+  status?: string
+}
 
 export function TutorPage() {
   const { academyAdmin } = useAcademySession()
@@ -15,6 +29,7 @@ export function TutorPage() {
   const [answer, setAnswer] = useState<TutorAnswer | null>(null)
   const [sessions, setSessions] = useState<TutorSessionSummary[]>([])
   const [sessionId, setSessionId] = useState<string | undefined>()
+  const [policy, setPolicy] = useState<TutorPolicyStatus | null>(null)
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -27,12 +42,17 @@ export function TutorPage() {
       const map = new Map<string, CourseOption>()
       for (const enrollment of enrollments) {
         if (enrollment.status === 'active' || enrollment.status === 'completed') {
-          map.set(enrollment.courseId, { id: enrollment.courseId, title: enrollment.courseTitle, source: 'enrollment' })
+          map.set(enrollment.courseId, {
+            id: enrollment.courseId,
+            title: enrollment.courseTitle,
+            source: 'enrollment',
+            status: enrollment.courseStatus,
+          })
         }
       }
       for (const course of adminCourses) {
-        if (course.status === 'published' && !map.has(course.id)) {
-          map.set(course.id, { id: course.id, title: course.title, source: 'admin' })
+        if (!map.has(course.id)) {
+          map.set(course.id, { id: course.id, title: course.title, source: 'admin', status: course.status })
         }
       }
       const options = [...map.values()]
@@ -41,6 +61,14 @@ export function TutorPage() {
       setSessions(history)
     })
   }, [academyAdmin])
+
+  useEffect(() => {
+    if (!academyAdmin || !courseId) {
+      setPolicy(null)
+      return
+    }
+    void loadTutorPolicy(courseId).then(setPolicy).catch(() => setPolicy(null))
+  }, [academyAdmin, courseId])
 
   const selected = useMemo(() => courses.find((course) => course.id === courseId), [courses, courseId])
 
@@ -66,12 +94,39 @@ export function TutorPage() {
     }
   }
 
+  async function refreshPolicy() {
+    if (!academyAdmin || !courseId) return
+    setPolicy(await loadTutorPolicy(courseId))
+  }
+
+  async function changePolicy(enabled: boolean) {
+    if (!courseId || !academyAdmin) return
+    setBusy(true)
+    setStatus(enabled ? 'Registrando autorização explícita para o Tutor...' : 'Revogando autorização e removendo fontes...')
+    try {
+      await setTutorPolicy(courseId, enabled)
+      await refreshPolicy()
+      setAnswer(null)
+      setSessionId(undefined)
+      setStatus(enabled
+        ? selected?.status === 'published'
+          ? 'Tutor autorizado e fontes sincronizadas quando disponíveis.'
+          : 'Tutor autorizado. A indexação ocorrerá quando o curso for publicado.'
+        : 'Tutor desautorizado. O índice deste curso foi removido.')
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Não foi possível alterar a autorização do Tutor.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function rebuildSources() {
     if (!courseId || !academyAdmin) return
     setBusy(true)
     setStatus('Reconstruindo índice autorizado...')
     try {
       const result = await rebuildTutorSources(courseId)
+      await refreshPolicy()
       setStatus(`${result.chunkCount} trechos autorizados indexados em ${result.lessonCount} aulas.`)
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Falha ao indexar fontes.')
@@ -104,18 +159,31 @@ export function TutorPage() {
             Curso
             <select value={courseId} onChange={(event) => { setCourseId(event.target.value); newConversation() }}>
               {courses.length === 0 && <option value="">Nenhum curso disponível</option>}
-              {courses.map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+              {courses.map((course) => (
+                <option key={course.id} value={course.id}>{course.title}{academyAdmin && course.status ? ` · ${course.status}` : ''}</option>
+              ))}
             </select>
           </label>
 
-          {academyAdmin && (
-            <button type="button" className="secondaryButton" disabled={!courseId || busy} onClick={rebuildSources}>
-              Atualizar fontes autorizadas
-            </button>
+          {academyAdmin && policy && (
+            <div className="tutorPolicyCard">
+              <strong>{policy.enabled ? 'Tutor autorizado' : 'Tutor não autorizado'}</strong>
+              <span>Curso: {policy.courseStatus}</span>
+              <span>Fontes indexadas: {policy.chunkCount}</span>
+              <span>Última indexação: {policy.lastIndexedAt ? new Date(policy.lastIndexedAt).toLocaleString('pt-BR') : 'ainda não realizada'}</span>
+              <div className="tutorPolicyActions">
+                <button type="button" className="secondaryButton" disabled={busy} onClick={() => void changePolicy(!policy.enabled)}>
+                  {policy.enabled ? 'Desautorizar Tutor' : 'Autorizar Tutor'}
+                </button>
+                <button type="button" className="secondaryButton" disabled={!policy.enabled || policy.courseStatus !== 'published' || busy} onClick={rebuildSources}>
+                  Atualizar fontes
+                </button>
+              </div>
+            </div>
           )}
 
           {selected?.source === 'admin' && (
-            <p className="tutorHint">Este curso está disponível para indexação administrativa. Para fazer perguntas como aluno, a identidade atual também precisa estar matriculada.</p>
+            <p className="tutorHint">A autorização administrativa não substitui matrícula. Para fazer perguntas, a identidade atual também precisa estar matriculada no curso.</p>
           )}
 
           <div className="tutorHistory">
@@ -138,7 +206,7 @@ export function TutorPage() {
         <div className="tutorConversation">
           <div className="tutorSafetyNotice">
             <strong>Regra de segurança</strong>
-            <span>Sem evidência autorizada suficiente, o Tutor deve dizer que não encontrou base para responder.</span>
+            <span>Publicado não significa autorizado para IA. Sem autorização e evidência suficiente, o Tutor não responde tecnicamente.</span>
           </div>
 
           {answer && (
