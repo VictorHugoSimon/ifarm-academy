@@ -23,12 +23,13 @@ import { PublicDiscoveryGovernancePage } from './PublicDiscoveryGovernancePage'
 import { PublicPortalGovernancePage } from './PublicPortalGovernancePage'
 import { ReportsPage } from './ReportsPage'
 import { SmartFarmExperiencePage } from './SmartFarmExperiencePage'
+import { TutorPage } from './TutorPage'
 import { WhiteLabelPage } from './WhiteLabelPage'
 import { loadWhiteLabelContext, type WhiteLabelBrand } from '../services/whiteLabelApi'
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'plans' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'gamification' | 'notifications' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'plans' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'tutor' | 'gamification' | 'notifications' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -51,6 +52,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['operations', 'Operações'],
   ['certificate-validity', 'Validade certificados'],
   ['student', 'Experiência do aluno'],
+  ['tutor', 'Tutor IA'],
   ['gamification', 'Gamificação'],
   ['notifications', 'Notificações'],
   ['review', 'Revisão manual'],
@@ -92,7 +94,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>{runtimeBrand?.academyName || 'iFarm Academy'} · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, trilhas, instrutores, planos, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, trilhas, instrutores, planos, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, Tutor IA com conteúdo autorizado, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -122,6 +124,7 @@ export function AcademyWorkspacePage() {
       {view === 'operations' && <OperationsPage />}
       {view === 'certificate-validity' && <CertificateValidityGovernancePage />}
       {view === 'student' && <StudentAssessmentPlayerPage />}
+      {view === 'tutor' && <TutorPage />}
       {view === 'gamification' && <GamificationPage />}
       {view === 'notifications' && <NotificationCenterPage />}
       {view === 'review' && <AssessmentReviewPage />}
