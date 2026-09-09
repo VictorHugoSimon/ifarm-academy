@@ -53,6 +53,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   const courseId = String(body.courseId ?? '').trim()
   const question = clampQuestion(body.question)
   const requestedSessionId = String(body.sessionId ?? '').trim()
+  const externalGenerationRequested = body.allowExternalGeneration === true
   if (!courseId || question.length < 3) return json({ error: 'courseId e question são obrigatórios' }, 400)
 
   const enrollment = await db.prepare(`
@@ -120,7 +121,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   let answerEvidence = evidence
   let provider: string | null = null
 
-  if (generativeAuthorized && evidence.length > 0) {
+  if (externalGenerationRequested && generativeAuthorized && evidence.length > 0) {
     providerResult = await runTutorProvider(env, question, evidence)
     if (providerResult.outcome === 'success' && providerResult.answer) {
       answerMode = 'provider_generated'
@@ -196,6 +197,7 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
       providerAttempted: providerResult?.attempted ?? false,
       providerOutcome: providerResult?.outcome ?? null,
       generativeAuthorized,
+      externalGenerationRequested,
       fallbackUsed: Boolean(providerResult && providerResult.outcome !== 'success'),
     },
   })
