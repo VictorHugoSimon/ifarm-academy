@@ -42,10 +42,17 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
   if (!enrollment) return json({ error: 'Matrícula ativa ou concluída é obrigatória para usar o Tutor neste curso' }, 403)
 
   const course = await db.prepare(`
-    SELECT id, title, status FROM academy_courses
-    WHERE tenant_id=? AND id=? LIMIT 1
+    SELECT c.id, c.title, c.status, p.enabled AS tutor_enabled
+    FROM academy_courses c
+    LEFT JOIN academy_tutor_course_policies p
+      ON p.tenant_id=c.tenant_id AND p.course_id=c.id
+    WHERE c.tenant_id=? AND c.id=?
+    LIMIT 1
   `).bind(auth.tenantId, courseId).first()
   if (!course || String(course.status) !== 'published') return json({ error: 'Curso não disponível para o Tutor' }, 404)
+  if (Number(course.tutor_enabled ?? 0) !== 1) {
+    return json({ error: 'O Tutor IA não está autorizado para este curso' }, 403)
+  }
 
   let sessionId = requestedSessionId
   if (sessionId) {
