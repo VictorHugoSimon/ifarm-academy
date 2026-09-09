@@ -65,3 +65,19 @@ BEGIN
       AND c.status='published'
   ) THEN RAISE(ABORT, 'tutor_session_not_authorized') END;
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tutor_policy_disable_purges_chunks
+AFTER UPDATE OF enabled ON academy_tutor_course_policies
+WHEN NEW.enabled=0
+BEGIN
+  DELETE FROM academy_tutor_source_chunks
+  WHERE tenant_id=NEW.tenant_id AND course_id=NEW.course_id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tutor_course_unpublish_purges_chunks
+AFTER UPDATE OF status ON academy_courses
+WHEN NEW.status<>'published'
+BEGIN
+  DELETE FROM academy_tutor_source_chunks
+  WHERE tenant_id=NEW.tenant_id AND course_id=NEW.id;
+END;
