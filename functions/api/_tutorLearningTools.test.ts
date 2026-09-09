@@ -32,6 +32,7 @@ describe('Tutor grounded learning tools', () => {
     if (artifact.toolType === 'flashcards') {
       expect(artifact.cards.length).toBeGreaterThan(0)
       expect(artifact.cards[0].back).toContain('pressão')
+      expect(artifact.cards.every((card) => Boolean(card.sourceId))).toBe(true)
     }
     expect(validateTutorLearningArtifact(artifact, candidates.map((item) => item.id)).valid).toBe(true)
   })
@@ -42,6 +43,7 @@ describe('Tutor grounded learning tools', () => {
     if (artifact.toolType === 'practice_exercises') {
       expect(artifact.disclaimer).toContain('Não alteram nota')
       expect(artifact.items[0].studyReference.length).toBeGreaterThan(10)
+      expect(artifact.items.some((item) => 'score' in item || 'grade' in item || 'attemptId' in item)).toBe(false)
     }
   })
 
@@ -52,5 +54,24 @@ describe('Tutor grounded learning tools', () => {
       valid: false,
       reason: 'source_not_allowed',
     })
+  })
+
+  it('rejeita artefatos vazios em vez de completar conteúdo sem evidência', () => {
+    expect(validateTutorLearningArtifact({ toolType: 'summary', title: 'Resumo', bullets: [] }, ['S1'])).toEqual({
+      valid: false,
+      reason: 'artifact_empty',
+    })
+    expect(() => buildTutorLearningArtifact('flashcards', [], 'Curso')).toThrow('insufficient_evidence')
+  })
+
+  it('mantém cada referência vinculada ao conjunto recuperado para a geração', () => {
+    const evidence = selectTutorLearningEvidence(candidates, 'inspeção')
+    const allowed = evidence.map((item) => item.id)
+    const artifacts = [
+      buildTutorLearningArtifact('summary', evidence, 'Curso'),
+      buildTutorLearningArtifact('flashcards', evidence, 'Curso'),
+      buildTutorLearningArtifact('practice_exercises', evidence, 'Curso'),
+    ]
+    expect(artifacts.every((artifact) => validateTutorLearningArtifact(artifact, allowed).valid)).toBe(true)
   })
 })
