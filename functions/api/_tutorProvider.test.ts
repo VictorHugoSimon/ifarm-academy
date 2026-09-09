@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   buildTutorProviderEnvelope,
+  redactTutorProviderText,
   runTutorProvider,
   tutorProviderRuntimeStatus,
   validateTutorProviderResponse,
@@ -44,6 +45,15 @@ describe('Tutor provider boundary', () => {
       ACADEMY_TUTOR_PROVIDER_MODE: 'gateway_v1',
       ACADEMY_TUTOR_PROVIDER_URL: 'https://provider.example.com/generate',
     })).toMatchObject({ configured: false, reason: 'missing_provider_token' })
+  })
+
+  it('redige identificadores estruturados comuns antes do envio', () => {
+    const redacted = redactTutorProviderText('Contato joao@example.com, CPF 123.456.789-00, telefone (18) 99999-1234.')
+    expect(redacted).toContain('[REDACTED_EMAIL]')
+    expect(redacted).toContain('[REDACTED_CPF]')
+    expect(redacted).toContain('[REDACTED_PHONE]')
+    expect(redacted).not.toContain('joao@example.com')
+    expect(redacted).not.toContain('123.456.789-00')
   })
 
   it('monta envelope sem identidade de tenant/aluno e limita fontes', () => {
