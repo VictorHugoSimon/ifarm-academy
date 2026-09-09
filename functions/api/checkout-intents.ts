@@ -65,8 +65,12 @@ async function resolveItem(db: any, tenantId: string, userId: string, item: Chec
       SELECT c.title, p.list_price_cents, p.currency
       FROM academy_course_public_profiles p
       JOIN academy_courses c ON c.id=p.course_id AND c.tenant_id=p.tenant_id
+      LEFT JOIN academy_white_label_settings ws ON ws.tenant_id=p.tenant_id AND ws.status='active'
+      LEFT JOIN academy_white_label_catalog_courses wc
+        ON wc.tenant_id=p.tenant_id AND wc.course_id=p.course_id AND wc.visible=1
       WHERE p.tenant_id=? AND p.course_id=? AND p.visibility='public' AND p.access_model='paid'
         AND c.status='published' AND p.list_price_cents>0
+        AND (ws.catalog_mode IS NULL OR ws.catalog_mode='all_tenant_courses' OR wc.course_id IS NOT NULL)
       LIMIT 1
     `).bind(tenantId, item.productId).first()
     if (!row) throw new Error('course_not_purchasable')
@@ -81,7 +85,7 @@ async function resolveItem(db: any, tenantId: string, userId: string, item: Chec
     `).bind(tenantId, userId, item.productId).first()
     if (active) throw new Error('plan_already_entitled')
     const row = await db.prepare(`
-      SELECT p.name, pp.id AS price_id, pp.amount_cents, pp.currency, pp.price_unit
+      SELECT p.name, p.max_users, pp.id AS price_id, pp.amount_cents, pp.currency, pp.price_unit
       FROM academy_plans p
       JOIN academy_plan_prices pp ON pp.plan_id=p.id AND pp.tenant_id=p.tenant_id
       WHERE p.tenant_id=? AND p.id=? AND p.status='public' AND p.commercial_mode='priced'
@@ -91,7 +95,11 @@ async function resolveItem(db: any, tenantId: string, userId: string, item: Chec
       LIMIT 1
     `).bind(tenantId, item.productId, item.billingInterval).first()
     if (!row) throw new Error('plan_not_purchasable')
-    if (String(row.price_unit) === 'subscription' && item.quantity !== 1) throw new Error('subscription_quantity_must_be_one')
+    const priceUnit = String(row.price_unit)
+    if (priceUnit === 'subscription' && item.quantity !== 1) throw new Error('subscription_quantity_must_be_one')
+    if (priceUnit === 'per_user' && row.max_users != null && item.quantity > Number(row.max_users)) {
+      throw new Error('plan_quantity_exceeds_max_users')
+    }
     const unit = Number(row.amount_cents)
     return {
       ...item,
@@ -110,22 +118,25 @@ async function resolveItem(db: any, tenantId: string, userId: string, item: Chec
   `).bind(tenantId, userId, item.productId).first()
   if (existing) throw new Error('event_already_entitled')
   const row = await db.prepare(`
-    SELECT title, price_cents, currency, starts_at, registration_deadline
-    FROM academy_events
-    WHERE tenant_id=? AND id=? AND status='published' AND access_model='paid' AND price_cents>0
-      AND datetime(starts_at)>datetime('now')
-      AND (registration_deadline IS NULL OR datetime(registration_deadline)>datetime('now'))
+    SELECT e.title, e.price_cents, e.currency, e.starts_at, e.registration_deadline, e.capacity,
+           (SELECT COUNT(*) FROM academy_event_registrations r
+             WHERE r.tenant_id=e.tenant_id AND r.event_id=e.id AND r.status IN ('registered','attended')) AS occupied
+    FROM academy_events e
+    WHERE e.tenant_id=? AND e.id=? AND e.status='published' AND e.access_model='paid' AND e.price_cents>0
+      AND datetime(e.starts_at)>datetime('now')
+      AND (e.registration_deadline IS NULL OR datetime(e.registration_deadline)>datetime('now'))
     LIMIT 1
   `).bind(tenantId, item.productId).first()
   if (!row) throw new Error('event_not_purchasable')
+  if (row.capacity != null && Number(row.occupied ?? 0) >= Number(row.capacity)) throw new Error('event_capacity_unavailable')
   const unit = Number(row.price_cents)
   return { ...item, priceRef: null, description: String(row.title), unitAmountCents: unit, totalAmountCents: unit, currency: String(row.currency) }
 }
 
 function publicCheckoutError(error: unknown) {
   const code = error instanceof Error ? error.message : 'checkout_invalid'
-  const status = code.includes('already_entitled') ? 409 : code.includes('not_purchasable') ? 409 : 400
-  return json({ error: code }, status)
+  const conflict = code.includes('already_entitled') || code.includes('not_purchasable') || code.includes('capacity_unavailable') || code.includes('exceeds_max_users')
+  return json({ error: code }, conflict ? 409 : 400)
 }
 
 export const onRequestGet = async ({ env, request }: { env: Env; request: Request }) => {
