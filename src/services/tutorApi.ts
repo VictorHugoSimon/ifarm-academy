@@ -28,6 +28,19 @@ export interface TutorAnswer {
   providerConfigured: boolean
 }
 
+export interface TutorPolicyStatus {
+  courseId: string
+  courseTitle: string
+  courseStatus: 'draft' | 'review' | 'published' | 'archived'
+  enabled: boolean
+  approvedBy?: string | null
+  approvedAt?: string | null
+  disabledAt?: string | null
+  lastIndexedAt?: string | null
+  lastIndexedCourseUpdatedAt?: string | null
+  chunkCount: number
+}
+
 export async function loadTutorSessions(): Promise<TutorSessionSummary[]> {
   const result = await authenticatedJson<{ data: TutorSessionSummary[] }>('/api/tutor')
   return result.data
@@ -38,6 +51,22 @@ export async function askTutor(input: { courseId: string; question: string; sess
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
+  })
+  return result.data
+}
+
+export async function loadTutorPolicy(courseId: string): Promise<TutorPolicyStatus> {
+  const result = await authenticatedJson<{ data: TutorPolicyStatus }>(
+    `/api/tutor-policy?courseId=${encodeURIComponent(courseId)}`,
+  )
+  return result.data
+}
+
+export async function setTutorPolicy(courseId: string, enabled: boolean) {
+  const result = await authenticatedJson<{ data: Record<string, unknown> }>('/api/tutor-policy', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ courseId, enabled }),
   })
   return result.data
 }
