@@ -42,6 +42,25 @@ ON academy_tutor_provider_events(tenant_id, course_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tutor_provider_events_outcome
 ON academy_tutor_provider_events(tenant_id, outcome, created_at DESC);
 
+CREATE TRIGGER IF NOT EXISTS trg_tutor_generative_policy_guard_insert
+BEFORE INSERT ON academy_tutor_course_policies
+WHEN NEW.generative_enabled=1
+BEGIN
+  SELECT CASE WHEN NEW.enabled<>1
+    THEN RAISE(ABORT, 'tutor_generation_requires_content_authorization') END;
+  SELECT CASE WHEN NEW.generative_approved_by IS NULL
+                OR NEW.generative_approved_at IS NULL
+                OR NEW.generative_approved_course_updated_at IS NULL
+    THEN RAISE(ABORT, 'tutor_generation_requires_explicit_approval') END;
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_courses c
+    WHERE c.id=NEW.course_id
+      AND c.tenant_id=NEW.tenant_id
+      AND c.status='published'
+      AND c.updated_at=NEW.generative_approved_course_updated_at
+  ) THEN RAISE(ABORT, 'tutor_generation_requires_current_published_course') END;
+END;
+
 CREATE TRIGGER IF NOT EXISTS trg_tutor_generative_policy_guard_update
 BEFORE UPDATE OF generative_enabled, generative_approved_by, generative_approved_at, generative_approved_course_updated_at
 ON academy_tutor_course_policies
@@ -82,6 +101,20 @@ BEGIN
       generative_disabled_at=COALESCE(generative_disabled_at, NEW.updated_at),
       updated_at=NEW.updated_at
   WHERE tenant_id=NEW.tenant_id AND course_id=NEW.id AND generative_enabled=1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tutor_course_version_change_disables_generation
+AFTER UPDATE OF updated_at ON academy_courses
+WHEN NEW.updated_at<>OLD.updated_at
+BEGIN
+  UPDATE academy_tutor_course_policies
+  SET generative_enabled=0,
+      generative_disabled_at=COALESCE(generative_disabled_at, NEW.updated_at),
+      updated_at=NEW.updated_at
+  WHERE tenant_id=NEW.tenant_id
+    AND course_id=NEW.id
+    AND generative_enabled=1
+    AND generative_approved_course_updated_at<>NEW.updated_at;
 END;
 
 CREATE TRIGGER IF NOT EXISTS trg_tutor_provider_event_scope_insert
