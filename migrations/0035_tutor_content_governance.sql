@@ -51,3 +51,17 @@ BEGIN
       AND c.status='published'
   ) THEN RAISE(ABORT, 'tutor_content_not_authorized') END;
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_tutor_session_policy_guard_insert
+BEFORE INSERT ON academy_tutor_sessions
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1
+    FROM academy_tutor_course_policies p
+    JOIN academy_courses c ON c.id=p.course_id AND c.tenant_id=p.tenant_id
+    WHERE p.tenant_id=NEW.tenant_id
+      AND p.course_id=NEW.course_id
+      AND p.enabled=1
+      AND c.status='published'
+  ) THEN RAISE(ABORT, 'tutor_session_not_authorized') END;
+END;
