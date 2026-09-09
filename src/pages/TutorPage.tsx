@@ -27,6 +27,7 @@ export function TutorPage() {
   const [courses, setCourses] = useState<CourseOption[]>([])
   const [courseId, setCourseId] = useState('')
   const [question, setQuestion] = useState('')
+  const [allowExternalGeneration, setAllowExternalGeneration] = useState(false)
   const [answer, setAnswer] = useState<TutorAnswer | null>(null)
   const [sessions, setSessions] = useState<TutorSessionSummary[]>([])
   const [sessionId, setSessionId] = useState<string | undefined>()
@@ -78,9 +79,16 @@ export function TutorPage() {
     const text = question.trim()
     if (!courseId || text.length < 3) return
     setBusy(true)
-    setStatus('Consultando somente conteúdo autorizado do curso...')
+    setStatus(allowExternalGeneration
+      ? 'Consultando conteúdo autorizado; geração externa só será usada se o curso também estiver autorizado.'
+      : 'Consultando somente conteúdo autorizado do curso em modo evidence-only...')
     try {
-      const result = await askTutor({ courseId, question: text, sessionId })
+      const result = await askTutor({
+        courseId,
+        question: text,
+        sessionId,
+        allowExternalGeneration,
+      })
       setAnswer(result)
       setSessionId(result.sessionId)
       setQuestion('')
@@ -89,7 +97,9 @@ export function TutorPage() {
       } else if (result.mode === 'evidence_only') {
         setStatus(result.fallbackUsed
           ? 'O provider não passou no contrato de segurança; o Tutor retornou somente evidências.'
-          : 'Resposta limitada às evidências publicadas abaixo.')
+          : result.externalGenerationRequested && !result.generativeAuthorized
+            ? 'Você permitiu geração externa, mas este curso/versão não está autorizado. Mantido evidence-only.'
+            : 'Resposta limitada às evidências publicadas abaixo.')
       } else {
         setStatus('O Tutor não encontrou contexto autorizado suficiente para responder com segurança.')
       }
@@ -167,6 +177,7 @@ export function TutorPage() {
     setSessionId(undefined)
     setAnswer(null)
     setQuestion('')
+    setAllowExternalGeneration(false)
     setStatus('Nova conversa iniciada.')
   }
 
@@ -176,7 +187,7 @@ export function TutorPage() {
         <div>
           <small>iFarm Academy AI Tutor</small>
           <h2>Tutor baseado em conteúdo autorizado</h2>
-          <p>O fallback permanente é <strong>evidence-only</strong>. Geração externa só ocorre quando o curso e a versão publicada possuem uma segunda autorização explícita e o provider server-side está configurado.</p>
+          <p>O fallback permanente é <strong>evidence-only</strong>. Geração externa só ocorre com autorização administrativa da versão publicada, provider server-side configurado e autorização do aluno na pergunta atual.</p>
         </div>
         <button type="button" className="secondaryButton" onClick={newConversation}>Nova conversa</button>
       </header>
@@ -233,6 +244,7 @@ export function TutorPage() {
                 setCourseId(session.course_id)
                 setSessionId(session.id)
                 setAnswer(null)
+                setAllowExternalGeneration(false)
                 setStatus('Sessão selecionada. Novas perguntas serão adicionadas a ela.')
               }}>
                 <strong>{session.title}</strong>
@@ -280,6 +292,14 @@ export function TutorPage() {
               maxLength={2000}
               placeholder="Ex.: quais cuidados o material apresenta sobre pressão e vazão na irrigação?"
             />
+            <label className="tutorExternalConsent">
+              <input
+                type="checkbox"
+                checked={allowExternalGeneration}
+                onChange={(event) => setAllowExternalGeneration(event.target.checked)}
+              />
+              <span>Permitir geração externa nesta pergunta, quando o curso/versão estiver autorizado. A pergunta e trechos autorizados podem ser enviados ao gateway; e-mail, CPF e telefone são redigidos em best-effort antes do envio.</span>
+            </label>
             <div className="tutorComposerFooter">
               <span>{status}</span>
               <button type="submit" disabled={!courseId || question.trim().length < 3 || busy}>{busy ? 'Consultando...' : 'Consultar conteúdo'}</button>
