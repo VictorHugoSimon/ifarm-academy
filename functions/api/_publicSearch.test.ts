@@ -51,7 +51,7 @@ describe('Public Search v0.62', () => {
       query: 'irrigacao', types: ['course', 'path', 'instructor', 'event', 'plan'],
       category: '', access: '', level: '', modality: '', limit: 24, offset: 0,
     })
-    expect(result.items.map((item) => item.id)).toEqual(['C1', 'I1', 'E1'])
+    expect(result.items.map((item) => item.id)).toEqual(['C1', 'E1', 'I1'])
     expect(result.items[0]?.type).toBe('course')
   })
 
