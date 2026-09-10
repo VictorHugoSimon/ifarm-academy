@@ -31,6 +31,10 @@ export interface BundleAdmin extends Omit<PublicBundleDetail,'checkoutReady'|'co
   externalItems:Array<{id:string;sourceSystem:string;externalRef:string;label:string;description:string;itemType:string;position:number}>;
   createdAt:string; updatedAt:string
 }
+export interface BundleCatalogItem { id:string; label:string; meta?:string|null }
+export interface BundleCatalog {
+  courses:BundleCatalogItem[]; paths:BundleCatalogItem[]; plans:BundleCatalogItem[]; partners:BundleCatalogItem[]
+}
 
 async function publicRequest<T>(url:string):Promise<T>{
   const response=await fetch(url,{headers:{accept:'application/json'}})
@@ -51,6 +55,7 @@ export async function savePartnerAdmin(input:{
 }){return authenticatedJson('/api/public-partners',{method:input.partnerId?'PUT':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)})}
 
 export async function loadBundleAdmin(){return (await authenticatedJson<{data:BundleAdmin[]}>('/api/public-bundles')).data}
+export async function loadBundleCatalog(){return (await authenticatedJson<{data:BundleCatalog}>('/api/public-bundle-catalog')).data}
 export async function saveBundleAdmin(input:{
   bundleId?:string;slug:string;title:string;description:string;status:'hidden'|'public';featured:boolean;
   commercialMode:'free'|'priced'|'contact_sales';listPriceCents?:number|null;currency:string;coverRef?:string|null;
