@@ -134,6 +134,43 @@ export interface PublicPlan {
   subscriptionCreationReady: false
 }
 
+export type PublicSearchType = 'course'|'path'|'instructor'|'event'|'plan'
+
+export interface PublicSearchItem {
+  type: PublicSearchType
+  id: string
+  slug?: string | null
+  title: string
+  description: string
+  category?: string | null
+  level?: string | null
+  accessModel?: string | null
+  modality?: string | null
+  startsAt?: string | null
+  imageRef?: string | null
+  featured: boolean
+  href: string
+  meta?: string[]
+}
+
+export interface PublicSearchFacets {
+  types: Record<PublicSearchType, number>
+  categories: Array<{ value: string; count: number }>
+  accessModels: Array<{ value: string; count: number }>
+  levels: Array<{ value: string; count: number }>
+  modalities: Array<{ value: string; count: number }>
+}
+
+export interface PublicSearchResponse {
+  brand: PublicBrand
+  query: string
+  filters: { types: PublicSearchType[]; category: string|null; access: string|null; level: string|null; modality: string|null }
+  data: PublicSearchItem[]
+  facets: PublicSearchFacets
+  pagination: { limit: number; offset: number; total: number; hasMore: boolean }
+  ranking: { behavioralPersonalization: false; commercialProfiling: false; strategy: string }
+}
+
 async function request<T>(url: string): Promise<T> {
   const response = await fetch(url, { headers: { accept: 'application/json' } })
   const payload = await response.json().catch(() => null)
@@ -182,6 +219,28 @@ export async function loadPublicPlans() {
 
 export async function loadPublicPlan(slug: string) {
   return request<{ brand: PublicBrand; data: PublicPlan }>(`/api/public/plan/${encodeURIComponent(slug)}`)
+}
+
+export async function loadPublicSearch(params: {
+  q?: string
+  types?: PublicSearchType[]
+  category?: string
+  access?: string
+  level?: string
+  modality?: string
+  limit?: number
+  offset?: number
+} = {}) {
+  const url = new URL('/api/public/search', window.location.origin)
+  if (params.q?.trim()) url.searchParams.set('q', params.q.trim())
+  if (params.types?.length) url.searchParams.set('types', params.types.join(','))
+  if (params.category) url.searchParams.set('category', params.category)
+  if (params.access) url.searchParams.set('access', params.access)
+  if (params.level) url.searchParams.set('level', params.level)
+  if (params.modality) url.searchParams.set('modality', params.modality)
+  if (params.limit != null) url.searchParams.set('limit', String(params.limit))
+  if (params.offset != null) url.searchParams.set('offset', String(params.offset))
+  return request<PublicSearchResponse>(url.pathname + url.search)
 }
 
 export function formatPlanPrice(price: PublicPlanPrice) {
