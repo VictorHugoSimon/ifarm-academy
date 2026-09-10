@@ -89,6 +89,9 @@ jobs:
       - name: Public paths and instructors fixtures
         run: python3 scripts/integration_public_discovery_contract.py
 
+      - name: Unified public search fixtures
+        run: python3 scripts/integration_public_search_contract.py
+
       - name: Plans and subscriptions fixtures
         run: python3 scripts/integration_plans_contract.py
 
