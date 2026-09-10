@@ -44,6 +44,7 @@ function PublicHeader({ brand }: { brand: PublicBrand }) {
       <span><strong>{brand.brandName}</strong><small>{brand.academyName}</small></span>
     </button>
     <nav aria-label="Portal público">
+      <button onClick={() => go('/search')}>Buscar</button>
       <button onClick={() => go('/courses')}>Cursos</button>
       <button onClick={() => go('/paths')}>Trilhas</button>
       <button onClick={() => go('/plans')}>Planos</button>
@@ -124,7 +125,7 @@ export function PublicPortalPage() {
 
   function search(event: FormEvent) {
     event.preventDefault()
-    const url = new URL('/courses', window.location.origin)
+    const url = new URL(view === 'catalog' ? '/courses' : '/search', window.location.origin)
     if (query.trim()) url.searchParams.set('q', query.trim())
     if (category) url.searchParams.set('category', category)
     go(url.pathname + url.search)
@@ -137,13 +138,13 @@ export function PublicPortalPage() {
 
     {!loading && !error && view === 'home' && <main>
       <section className="publicHero"><div><small>Educação conectada ao agro real</small><h1>Conhecimento para transformar decisões no campo.</h1><p>Cursos, trilhas, planos, especialistas, treinamentos corporativos, experiências práticas e tecnologia integrados ao ecossistema iFarm.</p><div className="publicHeroActions"><button className="primary" onClick={() => go('/courses')}>Explorar cursos</button><button onClick={() => go('/paths')}>Ver trilhas</button><button onClick={() => go('/plans')}>Ver planos</button><button onClick={() => go('/events')}>Ver eventos</button></div></div><div className="publicHeroPanel"><span>Smart Farm Experience</span><strong>Aprender. Praticar. Certificar.</strong><p>Conteúdo digital conectado a dias de campo, demonstrações e capacitação prática.</p></div></section>
-      <section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cursos e temas" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><button>Buscar</button></form></section>
+      <section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cursos, trilhas, instrutores, eventos e planos" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><button>Buscar em tudo</button></form></section>
       <section className="publicSection"><div className="publicSectionTitle"><div><small>Formação</small><h2>Cursos em destaque</h2></div><button onClick={() => go('/courses')}>Ver catálogo completo</button></div><div className="publicCourseGrid">{homeCourses.map((course) => <CourseCard key={course.id} course={course} />)}</div>{!homeCourses.length && <p>Ainda não há cursos públicos configurados para este portal.</p>}</section>
       <section className="publicValue"><article><strong>Aprendizado aplicado</strong><p>Conteúdo estruturado para a realidade de produtores, equipes, empresas e parceiros do agro.</p></article><article><strong>Trilhas progressivas</strong><p>Sequências de cursos organizadas para desenvolver competências de forma estruturada.</p></article><article><strong>Planos flexíveis</strong><p>Acesso individual, corporativo ou parceiro com condições comerciais publicadas de forma explícita.</p></article></section>
       <section className="publicSection"><div className="publicSectionTitle"><div><small>Agenda</small><h2>Próximos eventos</h2></div><button onClick={() => go('/events')}>Ver agenda</button></div><div className="publicEventGrid">{events.slice(0,3).map((event) => <EventCard key={event.id} event={event} />)}</div>{!events.length && <p>Nenhum evento público programado no momento.</p>}</section>
     </main>}
 
-    {!loading && !error && view === 'catalog' && <main className="publicPage"><div className="publicPageHeading"><small>Catálogo</small><h1>Cursos e formações</h1><p>Explore o conteúdo publicado para este portal.</p></div><section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título ou tema" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><button>Filtrar</button></form></section><div className="publicCourseGrid">{courses.map((course) => <CourseCard key={course.id} course={course} />)}</div>{!courses.length && <p className="publicEmpty">Nenhum curso encontrado.</p>}</main>}
+    {!loading && !error && view === 'catalog' && <main className="publicPage"><div className="publicPageHeading"><small>Catálogo</small><h1>Cursos e formações</h1><p>Explore o conteúdo publicado para este portal.</p></div><section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título ou tema" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><button>Filtrar cursos</button></form></section><div className="publicCourseGrid">{courses.map((course) => <CourseCard key={course.id} course={course} />)}</div>{!courses.length && <p className="publicEmpty">Nenhum curso encontrado.</p>}</main>}
 
     {!loading && !error && view === 'events' && <main className="publicPage"><div className="publicPageHeading"><small>Agenda</small><h1>Eventos e experiências</h1><p>Workshops, treinamentos, webinars, aulas práticas e Smart Farm Experience.</p></div><div className="publicEventGrid">{events.map((event) => <EventCard key={event.id} event={event} />)}</div>{!events.length && <p className="publicEmpty">Nenhum evento público programado.</p>}</main>}
 
@@ -154,6 +155,6 @@ export function PublicPortalPage() {
     </main>}
 
     {!loading && !error && view === 'not-found' && <main className="publicState"><h1>Página não encontrada</h1><p>O endereço solicitado não existe neste portal.</p><button onClick={() => go('/')}>Voltar ao início</button></main>}
-    <footer className="publicPortalFooter"><div><strong>{brand.academyName}</strong><span>Educação conectada ao ecossistema iFarm.</span></div><div><button onClick={() => go('/courses')}>Cursos</button><button onClick={() => go('/paths')}>Trilhas</button><button onClick={() => go('/plans')}>Planos</button><button onClick={() => go('/instructors')}>Instrutores</button><button onClick={() => go('/events')}>Eventos</button><button onClick={() => go('/certificates/validate')}>Certificados</button></div></footer>
+    <footer className="publicPortalFooter"><div><strong>{brand.academyName}</strong><span>Educação conectada ao ecossistema iFarm.</span></div><div><button onClick={() => go('/search')}>Buscar</button><button onClick={() => go('/courses')}>Cursos</button><button onClick={() => go('/paths')}>Trilhas</button><button onClick={() => go('/plans')}>Planos</button><button onClick={() => go('/instructors')}>Instrutores</button><button onClick={() => go('/events')}>Eventos</button><button onClick={() => go('/certificates/validate')}>Certificados</button></div></footer>
   </div>
 }
