@@ -22,7 +22,7 @@ export interface PublicPartnerDetail extends PublicPartner { bundles:PublicBundl
 export interface PartnerAdmin extends PublicPartner {
   sourceSystem:string; externalRef:string; status:'hidden'|'public'; createdAt:string; updatedAt:string
 }
-export interface BundleAdmin extends Omit<PublicBundleDetail,'checkoutReady'> {
+export interface BundleAdmin extends Omit<PublicBundleDetail,'checkoutReady'|'courses'|'paths'|'plans'|'partners'|'externalItems'> {
   status:'hidden'|'public';
   courses:Array<{id:string;label:string;position:number}>;
   paths:Array<{id:string;label:string;position:number}>;
