@@ -11,7 +11,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
 
   const filters = parsePublicSearchFilters(new URL(request.url))
 
-  const [courseRows, pathRows, instructorRows, eventRows, planRows] = await Promise.all([
+  const [courseRows, pathRows, instructorRows, eventRows, planRows, partnerRows, bundleRows] = await Promise.all([
     db.prepare(`
       SELECT c.id,c.title,c.description,c.instructor_label,c.certificate_type,
         p.slug,p.category,p.level_label,p.short_description,p.audience_text,p.cover_ref,
@@ -65,29 +65,58 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       ORDER BY p.featured DESC,p.name
       LIMIT ${CANDIDATE_LIMIT}
     `).bind(context.tenantId).all(),
+    db.prepare(`
+      SELECT p.*
+      FROM academy_public_partners p
+      WHERE p.tenant_id=? AND p.status='public'
+      ORDER BY p.featured DESC,p.display_name
+      LIMIT ${CANDIDATE_LIMIT}
+    `).bind(context.tenantId).all(),
+    db.prepare(`
+      SELECT b.*,
+        (SELECT GROUP_CONCAT(ex.label,' ') FROM academy_public_bundle_external_items ex
+          WHERE ex.tenant_id=b.tenant_id AND ex.bundle_id=b.id) AS external_labels,
+        (SELECT GROUP_CONCAT(pp.display_name,' ') FROM academy_public_bundle_partners bp
+          JOIN academy_public_partners pp ON pp.id=bp.partner_id AND pp.tenant_id=bp.tenant_id AND pp.status='public'
+          WHERE bp.tenant_id=b.tenant_id AND bp.bundle_id=b.id) AS partner_labels
+      FROM academy_public_bundles b
+      WHERE b.tenant_id=? AND b.status='public'
+        AND (
+          EXISTS (SELECT 1 FROM academy_public_bundle_external_items ex WHERE ex.tenant_id=b.tenant_id AND ex.bundle_id=b.id)
+          OR EXISTS (SELECT 1 FROM academy_public_bundle_paths px JOIN academy_public_learning_paths p ON p.id=px.path_id AND p.tenant_id=px.tenant_id AND p.visibility='public' WHERE px.tenant_id=b.tenant_id AND px.bundle_id=b.id)
+          OR EXISTS (SELECT 1 FROM academy_public_bundle_plans plx JOIN academy_plans pl ON pl.id=plx.plan_id AND pl.tenant_id=plx.tenant_id AND pl.status='public' WHERE plx.tenant_id=b.tenant_id AND plx.bundle_id=b.id)
+          OR EXISTS (
+            SELECT 1 FROM academy_public_bundle_courses cx
+            JOIN academy_courses c ON c.id=cx.course_id AND c.tenant_id=cx.tenant_id AND c.status='published'
+            JOIN academy_course_public_profiles cp ON cp.course_id=c.id AND cp.tenant_id=c.tenant_id AND cp.visibility='public'
+            LEFT JOIN academy_white_label_settings ws ON ws.tenant_id=cx.tenant_id AND ws.status='active'
+            LEFT JOIN academy_white_label_catalog_courses wc ON wc.tenant_id=cx.tenant_id AND wc.course_id=cx.course_id AND wc.visible=1
+            WHERE cx.tenant_id=b.tenant_id AND cx.bundle_id=b.id
+              AND (ws.catalog_mode IS NULL OR ws.catalog_mode='all_tenant_courses' OR wc.course_id IS NOT NULL)
+          )
+        )
+      ORDER BY b.featured DESC,b.title
+      LIMIT ${CANDIDATE_LIMIT}
+    `).bind(context.tenantId).all(),
   ])
 
   const candidates: PublicSearchCandidate[] = []
 
-  for (const row of courseRows.results as any[]) {
-    candidates.push({
-      type: 'course', id: String(row.id), slug: row.slug, title: String(row.title),
-      description: String(row.short_description || row.description || ''), category: row.category ?? null,
-      level: row.level_label ?? null, accessModel: row.access_model ?? null, modality: null,
-      imageRef: row.cover_ref ?? null, featured: Number(row.featured) === 1 || Number(row.white_label_featured) === 1,
-      href: `/courses/${row.slug}`,
-      meta: [row.instructor_label, row.audience_text, row.certificate_type].filter((value): value is string => typeof value === 'string' && value.length > 0),
-    })
-  }
+  for (const row of courseRows.results as any[]) candidates.push({
+    type: 'course', id: String(row.id), slug: row.slug, title: String(row.title),
+    description: String(row.short_description || row.description || ''), category: row.category ?? null,
+    level: row.level_label ?? null, accessModel: row.access_model ?? null, modality: null,
+    imageRef: row.cover_ref ?? null, featured: Number(row.featured) === 1 || Number(row.white_label_featured) === 1,
+    href: `/courses/${row.slug}`,
+    meta: [row.instructor_label, row.audience_text, row.certificate_type].filter((value): value is string => typeof value === 'string' && value.length > 0),
+  })
 
-  for (const row of pathRows.results as any[]) {
-    candidates.push({
-      type: 'path', id: String(row.id), slug: row.slug, title: String(row.title),
-      description: String(row.short_description || row.description || ''), category: row.category ?? null,
-      level: null, accessModel: row.access_model ?? null, modality: null, imageRef: row.cover_ref ?? null,
-      featured: Number(row.featured) === 1, href: `/paths/${row.slug}`,
-    })
-  }
+  for (const row of pathRows.results as any[]) candidates.push({
+    type: 'path', id: String(row.id), slug: row.slug, title: String(row.title),
+    description: String(row.short_description || row.description || ''), category: row.category ?? null,
+    level: null, accessModel: row.access_model ?? null, modality: null, imageRef: row.cover_ref ?? null,
+    featured: Number(row.featured) === 1, href: `/paths/${row.slug}`,
+  })
 
   for (const row of instructorRows.results as any[]) {
     const specialties = safeJson(row.public_specialties_json, [])
@@ -103,16 +132,14 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     })
   }
 
-  for (const row of eventRows.results as any[]) {
-    candidates.push({
-      type: 'event', id: String(row.id), slug: null, title: String(row.title),
-      description: String(row.description || ''), category: row.event_type ?? null, level: null,
-      accessModel: row.access_model ?? null, modality: row.modality ?? null, startsAt: row.starts_at ?? null,
-      imageRef: null, featured: false, href: '/events',
-      meta: [row.venue_name, row.address_text, Number(row.smart_farm_experience) === 1 ? 'Smart Farm Experience' : null]
-        .filter((value): value is string => typeof value === 'string' && value.length > 0),
-    })
-  }
+  for (const row of eventRows.results as any[]) candidates.push({
+    type: 'event', id: String(row.id), slug: null, title: String(row.title),
+    description: String(row.description || ''), category: row.event_type ?? null, level: null,
+    accessModel: row.access_model ?? null, modality: row.modality ?? null, startsAt: row.starts_at ?? null,
+    imageRef: null, featured: false, href: '/events',
+    meta: [row.venue_name, row.address_text, Number(row.smart_farm_experience) === 1 ? 'Smart Farm Experience' : null]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0),
+  })
 
   for (const row of planRows.results as any[]) {
     const accessModel = row.commercial_mode === 'free' ? 'free' : row.commercial_mode === 'priced' ? 'paid' : 'contact_sales'
@@ -122,6 +149,24 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
       accessModel, modality: null, imageRef: null, featured: Number(row.featured) === 1,
       href: `/plans/${row.slug}`,
       meta: [row.benefit_labels].filter((value): value is string => typeof value === 'string' && value.length > 0),
+    })
+  }
+
+  for (const row of partnerRows.results as any[]) candidates.push({
+    type: 'partner', id: String(row.id), slug: row.slug, title: String(row.display_name),
+    description: String(row.description || ''), category: row.partner_type ?? null, level: null,
+    accessModel: null, modality: null, imageRef: row.logo_ref ?? null, featured: Number(row.featured) === 1,
+    href: `/partners/${row.slug}`, meta: [row.source_system].filter((value): value is string => typeof value === 'string' && value.length > 0),
+  })
+
+  for (const row of bundleRows.results as any[]) {
+    const accessModel = row.commercial_mode === 'free' ? 'free' : row.commercial_mode === 'priced' ? 'paid' : 'contact_sales'
+    candidates.push({
+      type: 'bundle', id: String(row.id), slug: row.slug, title: String(row.title),
+      description: String(row.description || ''), category: 'Bundle', level: null, accessModel,
+      modality: null, imageRef: row.cover_ref ?? null, featured: Number(row.featured) === 1,
+      href: `/bundles/${row.slug}`,
+      meta: [row.external_labels, row.partner_labels].filter((value): value is string => typeof value === 'string' && value.length > 0),
     })
   }
 
