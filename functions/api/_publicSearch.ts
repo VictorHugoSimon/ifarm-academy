@@ -1,4 +1,4 @@
-export const PUBLIC_SEARCH_TYPES = ['course', 'path', 'instructor', 'event', 'plan'] as const
+export const PUBLIC_SEARCH_TYPES = ['course', 'path', 'instructor', 'event', 'plan', 'partner', 'bundle'] as const
 export type PublicSearchType = typeof PUBLIC_SEARCH_TYPES[number]
 
 export interface PublicSearchCandidate {
@@ -61,7 +61,7 @@ export function normalizePublicSearchText(value: unknown): string {
 
 export function parsePublicSearchFilters(url: URL): PublicSearchFilters {
   const typeSet = new Set<PublicSearchType>()
-  const rawTypes = safeParam(url.searchParams.get('types'), 120)
+  const rawTypes = safeParam(url.searchParams.get('types'), 160)
   for (const raw of rawTypes.split(',')) {
     const type = raw.trim() as PublicSearchType
     if ((PUBLIC_SEARCH_TYPES as readonly string[]).includes(type)) typeSet.add(type)
@@ -150,7 +150,7 @@ export function searchPublicCandidates(candidates: PublicSearchCandidate[], filt
   const queryMatched = candidates.filter((candidate) => matchesQuery(candidate, filters.query))
 
   const facets: PublicSearchFacets = {
-    types: { course: 0, path: 0, instructor: 0, event: 0, plan: 0 },
+    types: { course: 0, path: 0, instructor: 0, event: 0, plan: 0, partner: 0, bundle: 0 },
     categories: countFacet(queryMatched.map((item) => item.category)),
     accessModels: countFacet(queryMatched.map((item) => item.accessModel)),
     levels: countFacet(queryMatched.map((item) => item.level)),
