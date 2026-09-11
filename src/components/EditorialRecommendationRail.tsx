@@ -1,4 +1,5 @@
 import type { PublicRecommendationSet } from '../services/editorialRecommendationsApi'
+import '../styles/editorial-public.css'
 
 function go(path:string){window.location.assign(path)}
 
