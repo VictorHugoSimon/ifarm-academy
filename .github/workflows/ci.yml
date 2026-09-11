@@ -95,6 +95,9 @@ jobs:
       - name: Public partners and bundles fixtures
         run: python3 scripts/integration_public_partners_bundles_contract.py
 
+      - name: Editorial recommendations fixtures
+        run: python3 scripts/integration_editorial_recommendations_contract.py
+
       - name: Plans and subscriptions fixtures
         run: python3 scripts/integration_plans_contract.py
 

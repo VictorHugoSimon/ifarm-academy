@@ -9,6 +9,7 @@ import { CertificateValidityGovernancePage } from './CertificateValidityGovernan
 import { CommercialEnginePage } from './CommercialEnginePage'
 import { CommercialPrivacyPage } from './CommercialPrivacyPage'
 import { CoursePublicationPage } from './CoursePublicationPage'
+import { EditorialRecommendationsPage } from './EditorialRecommendationsPage'
 import { EnrollmentCatalogPage } from './EnrollmentCatalogPage'
 import { EnterpriseTrainingPage } from './EnterpriseTrainingPage'
 import { EnterprisePathsPage } from './EnterprisePathsPage'
@@ -30,7 +31,7 @@ import { loadWhiteLabelContext, type WhiteLabelBrand } from '../services/whiteLa
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'partners-bundles' | 'plans' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'tutor' | 'gamification' | 'notifications' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'editorial-recommendations' | 'partners-bundles' | 'plans' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'tutor' | 'gamification' | 'notifications' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -38,6 +39,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['publication', 'Publicação'],
   ['public-portal', 'Portal Público'],
   ['public-discovery', 'Trilhas & Instrutores Públicos'],
+  ['editorial-recommendations', 'Curadoria do Portal'],
   ['partners-bundles', 'Parceiros & Bundles'],
   ['plans', 'Planos & Ofertas'],
   ['commercial', 'Motor Comercial'],
@@ -62,7 +64,7 @@ const tabs: Array<[WorkspaceView, string]> = [
 ]
 
 const academyAdminViews = new Set<WorkspaceView>([
-  'course', 'quiz', 'publication', 'public-portal', 'public-discovery', 'partners-bundles', 'plans',
+  'course', 'quiz', 'publication', 'public-portal', 'public-discovery', 'editorial-recommendations', 'partners-bundles', 'plans',
   'commercial', 'white-label', 'instructors', 'certificate-validity', 'review',
 ])
 const enterpriseViews = new Set<WorkspaceView>(['enterprise', 'enterprise-paths'])
@@ -96,7 +98,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>{runtimeBrand?.academyName || 'iFarm Academy'} · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, trilhas, instrutores, parceiros, bundles, planos, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, Tutor IA com conteúdo autorizado, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, curadoria editorial sem perfilamento, trilhas, instrutores, parceiros, bundles, planos, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, Tutor IA com conteúdo autorizado, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -111,6 +113,7 @@ export function AcademyWorkspacePage() {
       {view === 'publication' && <CoursePublicationPage />}
       {view === 'public-portal' && <PublicPortalGovernancePage />}
       {view === 'public-discovery' && <PublicDiscoveryGovernancePage />}
+      {view === 'editorial-recommendations' && <EditorialRecommendationsPage />}
       {view === 'partners-bundles' && <PartnersBundlesGovernancePage />}
       {view === 'plans' && <PlansGovernancePage />}
       {view === 'commercial' && <CommercialEnginePage />}
