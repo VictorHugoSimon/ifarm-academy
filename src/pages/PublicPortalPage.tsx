@@ -1,160 +1,25 @@
 import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import {
-  formatPublicPrice,
-  loadPublicCatalog,
-  loadPublicContext,
-  loadPublicCourse,
-  loadPublicEvents,
-  type PublicBrand,
-  type PublicCourse,
-  type PublicCourseDetail,
-  type PublicEvent,
-} from '../services/publicPortalApi'
+import { formatPublicPrice, loadPublicCatalog, loadPublicContext, loadPublicCourse, loadPublicEvents, type PublicBrand, type PublicCourse, type PublicCourseDetail, type PublicEvent } from '../services/publicPortalApi'
 import '../styles/public-portal.css'
 
-const defaultBrand: PublicBrand = {
-  brandName: 'iFarm', academyName: 'iFarm Academy', primaryColor: '#004E3B', secondaryColor: '#087A51', accentColor: '#00825B', whiteLabelConfigured: false,
-}
+const defaultBrand: PublicBrand = { brandName:'iFarm',academyName:'iFarm Academy',primaryColor:'#004E3B',secondaryColor:'#087A51',accentColor:'#00825B',whiteLabelConfigured:false }
+function workload(minutes:number){const hours=Math.floor(Math.max(0,minutes)/60);const rest=Math.max(0,minutes)%60;return hours?`${hours}h${rest?` ${rest}min`:''}`:`${rest}min`}
+function dateTime(value:string){const date=new Date(value);return Number.isNaN(date.getTime())?value:date.toLocaleString('pt-BR',{dateStyle:'medium',timeStyle:'short'})}
+function brandStyle(brand:PublicBrand):CSSProperties{return{'--portal-primary':brand.primaryColor,'--portal-secondary':brand.secondaryColor,'--portal-accent':brand.accentColor} as CSSProperties}
+function go(path:string){window.location.assign(path)}
+function PublicHeader({brand}:{brand:PublicBrand}){return <header className="publicPortalHeader"><button className="publicBrandButton" onClick={()=>go('/')} aria-label="Ir para a página inicial">{brand.logoRef?<img src={brand.logoRef} alt=""/>:<span className="publicBrandMark">iF</span>}<span><strong>{brand.brandName}</strong><small>{brand.academyName}</small></span></button><nav aria-label="Portal público"><button onClick={()=>go('/search')}>Buscar</button><button onClick={()=>go('/courses')}>Cursos</button><button onClick={()=>go('/paths')}>Trilhas</button><button onClick={()=>go('/bundles')}>Bundles</button><button onClick={()=>go('/partners')}>Parceiros</button><button onClick={()=>go('/plans')}>Planos</button><button onClick={()=>go('/events')}>Eventos</button><button onClick={()=>go('/certificates/validate')}>Validar certificado</button><button className="publicLogin" onClick={()=>go('/app')}>Entrar</button></nav></header>}
+function CourseCard({course}:{course:PublicCourse}){return <article className="publicCourseCard"><button className="publicCourseCover" onClick={()=>go(`/courses/${course.slug}`)} aria-label={`Ver ${course.title}`}>{course.coverRef?<img src={course.coverRef} alt=""/>:<span>{course.category||'iFarm Academy'}</span>}</button><div className="publicCourseBody"><div className="publicCourseMeta"><span>{course.category||'Curso'}</span>{course.levelLabel&&<span>{course.levelLabel}</span>}</div><h3>{course.title}</h3><p>{course.description||'Conteúdo publicado na iFarm Academy.'}</p><div className="publicCourseFacts"><span>{workload(course.workloadMinutes)}</span><span>{course.lessonCount} aulas</span></div><div className="publicCourseFooter"><strong>{formatPublicPrice(course)}</strong><button onClick={()=>go(`/courses/${course.slug}`)}>Ver curso</button></div></div></article>}
+function EventCard({event}:{event:PublicEvent}){const available=event.capacity==null?null:Math.max(0,event.capacity-event.occupied);return <article className="publicEventCard"><div><small>{event.smartFarmExperience?'Smart Farm Experience':event.eventType.replaceAll('_',' ')}</small><h3>{event.title}</h3><p>{event.description}</p></div><dl><div><dt>Início</dt><dd>{dateTime(event.startsAt)}</dd></div><div><dt>Modalidade</dt><dd>{event.modality==='in_person'?'Presencial':event.modality==='online'?'Online':'Híbrido'}</dd></div>{event.venueName&&<div><dt>Local</dt><dd>{event.venueName}</dd></div>}{available!=null&&<div><dt>Vagas</dt><dd>{available>0?`${available} disponíveis`:'Lista de espera'}</dd></div>}</dl><div className="publicEventFooter"><strong>{event.accessModel==='paid'&&event.priceCents!=null?new Intl.NumberFormat('pt-BR',{style:'currency',currency:event.currency}).format(event.priceCents/100):event.accessModel==='sponsored'?'Patrocinado':'Gratuito'}</strong><button onClick={()=>go('/app')}>{event.accessModel==='paid'&&!event.checkoutReady?'Entrar para acompanhar':'Entrar para se inscrever'}</button></div></article>}
 
-function workload(minutes: number) {
-  const hours = Math.floor(Math.max(0, minutes) / 60)
-  const rest = Math.max(0, minutes) % 60
-  return hours ? `${hours}h${rest ? ` ${rest}min` : ''}` : `${rest}min`
-}
-
-function dateTime(value: string) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('pt-BR', { dateStyle: 'medium', timeStyle: 'short' })
-}
-
-function brandStyle(brand: PublicBrand): CSSProperties {
-  return {
-    '--portal-primary': brand.primaryColor,
-    '--portal-secondary': brand.secondaryColor,
-    '--portal-accent': brand.accentColor,
-  } as CSSProperties
-}
-
-function go(path: string) { window.location.assign(path) }
-
-function PublicHeader({ brand }: { brand: PublicBrand }) {
-  return <header className="publicPortalHeader">
-    <button className="publicBrandButton" onClick={() => go('/')} aria-label="Ir para a página inicial">
-      {brand.logoRef ? <img src={brand.logoRef} alt="" /> : <span className="publicBrandMark">iF</span>}
-      <span><strong>{brand.brandName}</strong><small>{brand.academyName}</small></span>
-    </button>
-    <nav aria-label="Portal público">
-      <button onClick={() => go('/search')}>Buscar</button>
-      <button onClick={() => go('/courses')}>Cursos</button>
-      <button onClick={() => go('/paths')}>Trilhas</button>
-      <button onClick={() => go('/plans')}>Planos</button>
-      <button onClick={() => go('/instructors')}>Instrutores</button>
-      <button onClick={() => go('/events')}>Eventos</button>
-      <button onClick={() => go('/certificates/validate')}>Validar certificado</button>
-      <button className="publicLogin" onClick={() => go('/app')}>Entrar</button>
-    </nav>
-  </header>
-}
-
-function CourseCard({ course }: { course: PublicCourse }) {
-  return <article className="publicCourseCard">
-    <button className="publicCourseCover" onClick={() => go(`/courses/${course.slug}`)} aria-label={`Ver ${course.title}`}>
-      {course.coverRef ? <img src={course.coverRef} alt="" /> : <span>{course.category || 'iFarm Academy'}</span>}
-    </button>
-    <div className="publicCourseBody">
-      <div className="publicCourseMeta"><span>{course.category || 'Curso'}</span>{course.levelLabel && <span>{course.levelLabel}</span>}</div>
-      <h3>{course.title}</h3>
-      <p>{course.description || 'Conteúdo publicado na iFarm Academy.'}</p>
-      <div className="publicCourseFacts"><span>{workload(course.workloadMinutes)}</span><span>{course.lessonCount} aulas</span></div>
-      <div className="publicCourseFooter"><strong>{formatPublicPrice(course)}</strong><button onClick={() => go(`/courses/${course.slug}`)}>Ver curso</button></div>
-    </div>
-  </article>
-}
-
-function EventCard({ event }: { event: PublicEvent }) {
-  const available = event.capacity == null ? null : Math.max(0, event.capacity - event.occupied)
-  return <article className="publicEventCard">
-    <div><small>{event.smartFarmExperience ? 'Smart Farm Experience' : event.eventType.replaceAll('_',' ')}</small><h3>{event.title}</h3><p>{event.description}</p></div>
-    <dl><div><dt>Início</dt><dd>{dateTime(event.startsAt)}</dd></div><div><dt>Modalidade</dt><dd>{event.modality === 'in_person' ? 'Presencial' : event.modality === 'online' ? 'Online' : 'Híbrido'}</dd></div>{event.venueName && <div><dt>Local</dt><dd>{event.venueName}</dd></div>}{available != null && <div><dt>Vagas</dt><dd>{available > 0 ? `${available} disponíveis` : 'Lista de espera'}</dd></div>}</dl>
-    <div className="publicEventFooter"><strong>{event.accessModel === 'paid' && event.priceCents != null ? new Intl.NumberFormat('pt-BR',{style:'currency',currency:event.currency}).format(event.priceCents/100) : event.accessModel === 'sponsored' ? 'Patrocinado' : 'Gratuito'}</strong><button onClick={() => go('/app')}>{event.accessModel === 'paid' && !event.checkoutReady ? 'Entrar para acompanhar' : 'Entrar para se inscrever'}</button></div>
-  </article>
-}
-
-export function PublicPortalPage() {
-  const pathname = window.location.pathname
-  const courseMatch = pathname.match(/^\/courses\/([a-z0-9-]+)$/)
-  const view = courseMatch ? 'course' : pathname === '/courses' ? 'catalog' : pathname === '/events' ? 'events' : pathname === '/' ? 'home' : 'not-found'
-  const [brand, setBrand] = useState<PublicBrand>(defaultBrand)
-  const [courses, setCourses] = useState<PublicCourse[]>([])
-  const [events, setEvents] = useState<PublicEvent[]>([])
-  const [detail, setDetail] = useState<PublicCourseDetail | null>(null)
-  const [categories, setCategories] = useState<string[]>([])
-  const [query, setQuery] = useState(new URLSearchParams(window.location.search).get('q') ?? '')
-  const [category, setCategory] = useState(new URLSearchParams(window.location.search).get('category') ?? '')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true); setError('')
-    const work = async () => {
-      const context = await loadPublicContext()
-      if (cancelled) return
-      setBrand(context.brand)
-      document.title = context.brand.academyName
-      if (view === 'home') {
-        const [catalog, eventResult] = await Promise.all([loadPublicCatalog(), loadPublicEvents()])
-        if (cancelled) return
-        setCourses(catalog.data); setCategories(catalog.filters.categories); setEvents(eventResult.data)
-      } else if (view === 'catalog') {
-        const catalog = await loadPublicCatalog({ q: query, category })
-        if (cancelled) return
-        setCourses(catalog.data); setCategories(catalog.filters.categories)
-      } else if (view === 'events') {
-        const eventResult = await loadPublicEvents(); if (!cancelled) setEvents(eventResult.data)
-      } else if (view === 'course' && courseMatch) {
-        const result = await loadPublicCourse(courseMatch[1]); if (!cancelled) { setBrand(result.brand); setDetail(result.data); document.title = result.data.seoTitle || `${result.data.title} · ${result.brand.academyName}` }
-      }
-    }
-    void work().catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Portal indisponível.') }).finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [pathname, window.location.search])
-
-  const featured = useMemo(() => courses.filter((item) => item.featured).slice(0, 6), [courses])
-  const homeCourses = featured.length ? featured : courses.slice(0, 6)
-
-  function search(event: FormEvent) {
-    event.preventDefault()
-    const url = new URL(view === 'catalog' ? '/courses' : '/search', window.location.origin)
-    if (query.trim()) url.searchParams.set('q', query.trim())
-    if (category) url.searchParams.set('category', category)
-    go(url.pathname + url.search)
-  }
-
-  return <div className="publicPortal" style={brandStyle(brand)}>
-    <PublicHeader brand={brand} />
-    {loading && <main className="publicState"><strong>Carregando {brand.academyName}...</strong></main>}
-    {!loading && error && <main className="publicState error"><h1>Portal indisponível</h1><p>{error}</p><button onClick={() => go('/app')}>Entrar na Academy</button></main>}
-
-    {!loading && !error && view === 'home' && <main>
-      <section className="publicHero"><div><small>Educação conectada ao agro real</small><h1>Conhecimento para transformar decisões no campo.</h1><p>Cursos, trilhas, planos, especialistas, treinamentos corporativos, experiências práticas e tecnologia integrados ao ecossistema iFarm.</p><div className="publicHeroActions"><button className="primary" onClick={() => go('/courses')}>Explorar cursos</button><button onClick={() => go('/paths')}>Ver trilhas</button><button onClick={() => go('/plans')}>Ver planos</button><button onClick={() => go('/events')}>Ver eventos</button></div></div><div className="publicHeroPanel"><span>Smart Farm Experience</span><strong>Aprender. Praticar. Certificar.</strong><p>Conteúdo digital conectado a dias de campo, demonstrações e capacitação prática.</p></div></section>
-      <section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar cursos, trilhas, instrutores, eventos e planos" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><button>Buscar em tudo</button></form></section>
-      <section className="publicSection"><div className="publicSectionTitle"><div><small>Formação</small><h2>Cursos em destaque</h2></div><button onClick={() => go('/courses')}>Ver catálogo completo</button></div><div className="publicCourseGrid">{homeCourses.map((course) => <CourseCard key={course.id} course={course} />)}</div>{!homeCourses.length && <p>Ainda não há cursos públicos configurados para este portal.</p>}</section>
-      <section className="publicValue"><article><strong>Aprendizado aplicado</strong><p>Conteúdo estruturado para a realidade de produtores, equipes, empresas e parceiros do agro.</p></article><article><strong>Trilhas progressivas</strong><p>Sequências de cursos organizadas para desenvolver competências de forma estruturada.</p></article><article><strong>Planos flexíveis</strong><p>Acesso individual, corporativo ou parceiro com condições comerciais publicadas de forma explícita.</p></article></section>
-      <section className="publicSection"><div className="publicSectionTitle"><div><small>Agenda</small><h2>Próximos eventos</h2></div><button onClick={() => go('/events')}>Ver agenda</button></div><div className="publicEventGrid">{events.slice(0,3).map((event) => <EventCard key={event.id} event={event} />)}</div>{!events.length && <p>Nenhum evento público programado no momento.</p>}</section>
-    </main>}
-
-    {!loading && !error && view === 'catalog' && <main className="publicPage"><div className="publicPageHeading"><small>Catálogo</small><h1>Cursos e formações</h1><p>Explore o conteúdo publicado para este portal.</p></div><section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título ou tema" /><select value={category} onChange={(e) => setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><button>Filtrar cursos</button></form></section><div className="publicCourseGrid">{courses.map((course) => <CourseCard key={course.id} course={course} />)}</div>{!courses.length && <p className="publicEmpty">Nenhum curso encontrado.</p>}</main>}
-
-    {!loading && !error && view === 'events' && <main className="publicPage"><div className="publicPageHeading"><small>Agenda</small><h1>Eventos e experiências</h1><p>Workshops, treinamentos, webinars, aulas práticas e Smart Farm Experience.</p></div><div className="publicEventGrid">{events.map((event) => <EventCard key={event.id} event={event} />)}</div>{!events.length && <p className="publicEmpty">Nenhum evento público programado.</p>}</main>}
-
-    {!loading && !error && view === 'course' && detail && <main className="publicCourseDetail"><section className="publicCourseHero"><div><div className="publicCourseMeta"><span>{detail.category || 'Curso'}</span>{detail.levelLabel && <span>{detail.levelLabel}</span>}</div><h1>{detail.title}</h1><p>{detail.shortDescription || detail.description}</p><div className="publicCourseDetailFacts"><span>{workload(detail.workloadMinutes)}</span><span>{detail.moduleCount} módulos</span><span>{detail.lessonCount} aulas</span>{detail.instructorLabel && <span>{detail.instructorLabel}</span>}</div></div><aside><small>Acesso</small><strong>{formatPublicPrice(detail)}</strong><button className="primary" onClick={() => go('/app')}>{detail.accessModel === 'paid' ? 'Entrar para comprar' : 'Entrar para começar'}</button>{detail.accessModel === 'paid' && !detail.checkoutReady && <p>Checkout será habilitado após homologação da camada de pagamento.</p>}</aside></section>
-      {detail.audienceText && <section className="publicCourseAudience"><h2>Para quem é este curso</h2><p>{detail.audienceText}</p></section>}
-      <section className="publicSection"><div className="publicSectionTitle"><div><small>Conteúdo</small><h2>Programa do curso</h2></div></div><div className="publicModuleList">{detail.modules.map((module) => <article key={module.id}><div><strong>{module.title}</strong><p>{module.description}</p></div><span>{module.lessonCount} aulas · {workload(module.durationMinutes)}</span></article>)}</div></section>
-      <section className="publicCourseNotice"><strong>Conteúdo e certificação</strong><p>O acesso às aulas exige autenticação. A classificação do certificado depende do tipo cadastrado no curso e não substitui requisitos externos de habilitação ou reconhecimento regulatório.</p></section>
-    </main>}
-
-    {!loading && !error && view === 'not-found' && <main className="publicState"><h1>Página não encontrada</h1><p>O endereço solicitado não existe neste portal.</p><button onClick={() => go('/')}>Voltar ao início</button></main>}
-    <footer className="publicPortalFooter"><div><strong>{brand.academyName}</strong><span>Educação conectada ao ecossistema iFarm.</span></div><div><button onClick={() => go('/search')}>Buscar</button><button onClick={() => go('/courses')}>Cursos</button><button onClick={() => go('/paths')}>Trilhas</button><button onClick={() => go('/plans')}>Planos</button><button onClick={() => go('/instructors')}>Instrutores</button><button onClick={() => go('/events')}>Eventos</button><button onClick={() => go('/certificates/validate')}>Certificados</button></div></footer>
-  </div>
+export function PublicPortalPage(){
+  const pathname=window.location.pathname;const courseMatch=pathname.match(/^\/courses\/([a-z0-9-]+)$/);const view=courseMatch?'course':pathname==='/courses'?'catalog':pathname==='/events'?'events':pathname==='/'?'home':'not-found';const[brand,setBrand]=useState<PublicBrand>(defaultBrand);const[courses,setCourses]=useState<PublicCourse[]>([]);const[events,setEvents]=useState<PublicEvent[]>([]);const[detail,setDetail]=useState<PublicCourseDetail|null>(null);const[categories,setCategories]=useState<string[]>([]);const[query,setQuery]=useState(new URLSearchParams(window.location.search).get('q')??'');const[category,setCategory]=useState(new URLSearchParams(window.location.search).get('category')??'');const[loading,setLoading]=useState(true);const[error,setError]=useState('')
+  useEffect(()=>{let cancelled=false;setLoading(true);setError('');const work=async()=>{const context=await loadPublicContext();if(cancelled)return;setBrand(context.brand);document.title=context.brand.academyName;if(view==='home'){const[catalog,eventResult]=await Promise.all([loadPublicCatalog(),loadPublicEvents()]);if(cancelled)return;setCourses(catalog.data);setCategories(catalog.filters.categories);setEvents(eventResult.data)}else if(view==='catalog'){const catalog=await loadPublicCatalog({q:query,category});if(cancelled)return;setCourses(catalog.data);setCategories(catalog.filters.categories)}else if(view==='events'){const eventResult=await loadPublicEvents();if(!cancelled)setEvents(eventResult.data)}else if(view==='course'&&courseMatch){const result=await loadPublicCourse(courseMatch[1]);if(!cancelled){setBrand(result.brand);setDetail(result.data);document.title=result.data.seoTitle||`${result.data.title} · ${result.brand.academyName}`}}};void work().catch(reason=>{if(!cancelled)setError(reason instanceof Error?reason.message:'Portal indisponível.')}).finally(()=>{if(!cancelled)setLoading(false)});return()=>{cancelled=true}},[pathname,window.location.search])
+  const featured=useMemo(()=>courses.filter(item=>item.featured).slice(0,6),[courses]);const homeCourses=featured.length?featured:courses.slice(0,6)
+  function search(event:FormEvent){event.preventDefault();const url=new URL(view==='catalog'?'/courses':'/search',window.location.origin);if(query.trim())url.searchParams.set('q',query.trim());if(category)url.searchParams.set('category',category);go(url.pathname+url.search)}
+  return <div className="publicPortal" style={brandStyle(brand)}><PublicHeader brand={brand}/>{loading&&<main className="publicState"><strong>Carregando {brand.academyName}...</strong></main>}{!loading&&error&&<main className="publicState error"><h1>Portal indisponível</h1><p>{error}</p><button onClick={()=>go('/app')}>Entrar na Academy</button></main>}
+    {!loading&&!error&&view==='home'&&<main><section className="publicHero"><div><small>Educação conectada ao agro real</small><h1>Conhecimento para transformar decisões no campo.</h1><p>Cursos, trilhas, bundles, especialistas, parceiros, treinamentos corporativos, experiências práticas e tecnologia integrados ao ecossistema iFarm.</p><div className="publicHeroActions"><button className="primary" onClick={()=>go('/courses')}>Explorar cursos</button><button onClick={()=>go('/paths')}>Ver trilhas</button><button onClick={()=>go('/bundles')}>Ver bundles</button><button onClick={()=>go('/partners')}>Parceiros</button></div></div><div className="publicHeroPanel"><span>Smart Farm Experience</span><strong>Aprender. Praticar. Certificar.</strong><p>Conteúdo digital conectado a dias de campo, demonstrações e capacitação prática.</p></div></section><section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar cursos, trilhas, bundles, parceiros, eventos e planos"/><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map(item=><option key={item}>{item}</option>)}</select><button>Buscar em tudo</button></form></section><section className="publicSection"><div className="publicSectionTitle"><div><small>Formação</small><h2>Cursos em destaque</h2></div><button onClick={()=>go('/courses')}>Ver catálogo completo</button></div><div className="publicCourseGrid">{homeCourses.map(course=><CourseCard key={course.id} course={course}/>)}</div>{!homeCourses.length&&<p>Ainda não há cursos públicos configurados para este portal.</p>}</section><section className="publicValue"><article><strong>Aprendizado aplicado</strong><p>Conteúdo estruturado para a realidade de produtores, equipes, empresas e parceiros do agro.</p></article><article><strong>Bundles integrados</strong><p>Educação combinada a referências de produtos e serviços do ecossistema sem duplicar os sistemas responsáveis.</p></article><article><strong>Planos flexíveis</strong><p>Acesso individual, corporativo ou parceiro com condições comerciais publicadas de forma explícita.</p></article></section><section className="publicSection"><div className="publicSectionTitle"><div><small>Agenda</small><h2>Próximos eventos</h2></div><button onClick={()=>go('/events')}>Ver agenda</button></div><div className="publicEventGrid">{events.slice(0,3).map(event=><EventCard key={event.id} event={event}/>)}</div>{!events.length&&<p>Nenhum evento público programado no momento.</p>}</section></main>}
+    {!loading&&!error&&view==='catalog'&&<main className="publicPage"><div className="publicPageHeading"><small>Catálogo</small><h1>Cursos e formações</h1><p>Explore o conteúdo publicado para este portal.</p></div><section className="publicSearchSection"><form onSubmit={search}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por título ou tema"/><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Todas as categorias</option>{categories.map(item=><option key={item}>{item}</option>)}</select><button>Filtrar cursos</button></form></section><div className="publicCourseGrid">{courses.map(course=><CourseCard key={course.id} course={course}/>)}</div>{!courses.length&&<p className="publicEmpty">Nenhum curso encontrado.</p>}</main>}
+    {!loading&&!error&&view==='events'&&<main className="publicPage"><div className="publicPageHeading"><small>Agenda</small><h1>Eventos e experiências</h1><p>Workshops, treinamentos, webinars, aulas práticas e Smart Farm Experience.</p></div><div className="publicEventGrid">{events.map(event=><EventCard key={event.id} event={event}/>)}</div>{!events.length&&<p className="publicEmpty">Nenhum evento público programado.</p>}</main>}
+    {!loading&&!error&&view==='course'&&detail&&<main className="publicCourseDetail"><section className="publicCourseHero"><div><div className="publicCourseMeta"><span>{detail.category||'Curso'}</span>{detail.levelLabel&&<span>{detail.levelLabel}</span>}</div><h1>{detail.title}</h1><p>{detail.shortDescription||detail.description}</p><div className="publicCourseDetailFacts"><span>{workload(detail.workloadMinutes)}</span><span>{detail.moduleCount} módulos</span><span>{detail.lessonCount} aulas</span>{detail.instructorLabel&&<span>{detail.instructorLabel}</span>}</div></div><aside><small>Acesso</small><strong>{formatPublicPrice(detail)}</strong><button className="primary" onClick={()=>go('/app')}>{detail.accessModel==='paid'?'Entrar para comprar':'Entrar para começar'}</button>{detail.accessModel==='paid'&&!detail.checkoutReady&&<p>Checkout será habilitado após homologação da camada de pagamento.</p>}</aside></section>{detail.audienceText&&<section className="publicCourseAudience"><h2>Para quem é este curso</h2><p>{detail.audienceText}</p></section>}<section className="publicSection"><div className="publicSectionTitle"><div><small>Conteúdo</small><h2>Programa do curso</h2></div></div><div className="publicModuleList">{detail.modules.map(module=><article key={module.id}><div><strong>{module.title}</strong><p>{module.description}</p></div><span>{module.lessonCount} aulas · {workload(module.durationMinutes)}</span></article>)}</div></section><section className="publicCourseNotice"><strong>Conteúdo e certificação</strong><p>O acesso às aulas exige autenticação. A classificação do certificado depende do tipo cadastrado no curso e não substitui requisitos externos de habilitação ou reconhecimento regulatório.</p></section></main>}
+    {!loading&&!error&&view==='not-found'&&<main className="publicState"><h1>Página não encontrada</h1><p>O endereço solicitado não existe neste portal.</p><button onClick={()=>go('/')}>Voltar ao início</button></main>}<footer className="publicPortalFooter"><div><strong>{brand.academyName}</strong><span>Educação conectada ao ecossistema iFarm.</span></div><div><button onClick={()=>go('/search')}>Buscar</button><button onClick={()=>go('/courses')}>Cursos</button><button onClick={()=>go('/paths')}>Trilhas</button><button onClick={()=>go('/bundles')}>Bundles</button><button onClick={()=>go('/partners')}>Parceiros</button><button onClick={()=>go('/plans')}>Planos</button><button onClick={()=>go('/events')}>Eventos</button><button onClick={()=>go('/certificates/validate')}>Certificados</button></div></footer></div>
 }
