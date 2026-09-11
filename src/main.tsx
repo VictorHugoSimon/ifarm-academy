@@ -4,6 +4,7 @@ import { AcademySessionGate } from './pages/AcademySessionGate'
 import { AcademyWorkspacePage } from './pages/AcademyWorkspacePage'
 import { PublicCertificateValidationPage } from './pages/PublicCertificateValidationPage'
 import { PublicDiscoveryPage } from './pages/PublicDiscoveryPage'
+import { PublicPartnersBundlesPage } from './pages/PublicPartnersBundlesPage'
 import { PublicPlansPage } from './pages/PublicPlansPage'
 import { PublicPortalPage } from './pages/PublicPortalPage'
 import { PublicSearchPage } from './pages/PublicSearchPage'
@@ -19,6 +20,7 @@ const publicCertificateRoute = pathname === '/certificates/validate'
 const smartFarmCheckinRoute = pathname === '/smart-farm/checkin'
 const workspaceRoute = pathname === '/app' || pathname.startsWith('/app/')
 const publicSearchRoute = pathname === '/search'
+const publicPartnersBundlesRoute = pathname === '/partners' || pathname.startsWith('/partners/') || pathname === '/bundles' || pathname.startsWith('/bundles/')
 const publicPlansRoute = pathname === '/plans' || pathname.startsWith('/plans/')
 const publicDiscoveryRoute = pathname === '/paths' || pathname.startsWith('/paths/') || pathname === '/instructors' || pathname.startsWith('/instructors/')
 
@@ -32,10 +34,12 @@ createRoot(document.getElementById('root')!).render(
           ? <AcademySessionGate><AcademyWorkspacePage /></AcademySessionGate>
           : publicSearchRoute
             ? <PublicSearchPage />
-            : publicPlansRoute
-              ? <PublicPlansPage />
-              : publicDiscoveryRoute
-                ? <PublicDiscoveryPage />
-                : <PublicPortalPage />}
+            : publicPartnersBundlesRoute
+              ? <PublicPartnersBundlesPage />
+              : publicPlansRoute
+                ? <PublicPlansPage />
+                : publicDiscoveryRoute
+                  ? <PublicDiscoveryPage />
+                  : <PublicPortalPage />}
   </React.StrictMode>,
 )
