@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.62
+## Concluído até v0.63
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -11,7 +11,8 @@
 - Eventos, Smart Farm Experience, QR/check-in, evidências práticas e leads consentidos.
 - Instrutores, qualificações, revisão e responsabilidade técnica com confirmação humana.
 - Portal público, catálogo, trilhas públicas, perfis de instrutor, planos e ofertas White Label.
-- Busca pública unificada tenant-aware em cursos, trilhas, instrutores, eventos e planos, com filtros/facets e ranking textual determinístico sem perfilamento comportamental.
+- Busca pública unificada tenant-aware em cursos, trilhas, instrutores, eventos, planos, parceiros e bundles, com filtros/facets e ranking textual determinístico sem perfilamento comportamental.
+- Parceiros públicos por referência e bundles com cursos, trilhas, planos e itens externos, sem duplicar cadastros mestres/estoque/contratos do ecossistema.
 - Marketplace foundation com submissão/revisão/publicação e comissão versionada sem percentual padrão.
 - Motor comercial consentido, privacidade/revogação LGPD, outbox, handoff, conversão e worker boundary.
 - Gamificação foundation e Notification Center in-app.
@@ -31,15 +32,15 @@
   - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado;
   - Learning Signals calculados on-demand a partir de progresso/aulas/tentativas do ciclo;
   - recomendações acadêmicas sem diagnóstico, score de capacidade, provider externo ou perfilamento comercial.
-- 37 migrations versionadas e fixtures D1-compatible por módulo na v0.62.
+- 39 migrations versionadas e fixtures D1-compatible por módulo na v0.63.
 
 ## Próximas prioridades
 1. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
-2. **Checkout/Mercado Pago:** cursos, trilhas, planos, eventos e marketplace após validação comercial/fiscal; nenhum entitlement antes de confirmação confiável.
+2. **Checkout/Mercado Pago:** cursos, trilhas, planos, eventos, bundles e marketplace após validação comercial/fiscal; nenhum entitlement antes de confirmação confiável.
 3. **Subscriptions & entitlements:** ativação, renovação e cancelamento por eventos confiáveis de pagamento/contrato.
 4. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
 5. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core; hoje apenas capabilities foram encontradas.
-6. **Portal avançado:** recomendações contextuais/consentidas, parceiros e bundles. Busca enriquecida concluída na v0.62.
+6. **Portal avançado:** recomendações contextuais/editoriais e consentidas, sem histórico comportamental ou perfilamento comercial automático.
 7. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
 8. **Homologação e promoção:** executar matriz STAGE, corrigir findings e somente depois promover `main`/produção.
 
@@ -59,6 +60,8 @@
 - Learning Tools são materiais de estudo e não escrevem em avaliação, nota, progresso, conclusão ou certificado.
 - Learning Signals são efêmeros/read-only e não podem ser reutilizados para diagnóstico ou perfil comercial automático.
 - Busca pública não consulta histórico do visitante, não cria lead e não faz perfilamento comportamental/comercial.
+- Parceiros públicos são projeções por referência; a Academy não assume cadastro mestre, contrato ou dados privados do sistema de origem.
+- Bundles não duplicam estoque, produto, apólice, crédito, contrato ou entitlement e não habilitam checkout por si só.
 - Evento pago não gera inscrição/entitlement sem confirmação de checkout.
 - Marketplace não assume percentual, split, repasse ou regra fiscal; tudo deve ser explícito/versionado.
 - White Label não executa CSS/HTML arbitrário nem provisiona DNS automaticamente.
