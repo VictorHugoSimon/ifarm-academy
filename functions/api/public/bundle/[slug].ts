@@ -24,6 +24,9 @@ export const onRequestGet = async ({env,request,params}:{env:Env;request:Request
     db.prepare(`SELECT p.id,p.slug,p.display_name,p.logo_ref,p.partner_type,x.position FROM academy_public_bundle_partners x JOIN academy_public_partners p ON p.id=x.partner_id AND p.tenant_id=x.tenant_id AND p.status='public' WHERE x.tenant_id=? AND x.bundle_id=? ORDER BY x.position`).bind(context.tenantId,row.id).all(),
   ])
 
+  const visibleItemCount = courses.results.length + paths.results.length + plans.results.length + external.results.length
+  if (visibleItemCount === 0) return json({error:'Bundle não encontrado'},404)
+
   return json({brand:context.brand,data:{
     id:row.id,slug:row.slug,title:row.title,description:row.description??'',featured:Number(row.featured)===1,
     commercialMode:row.commercial_mode,listPriceCents:row.list_price_cents==null?null:Number(row.list_price_cents),currency:row.currency,
