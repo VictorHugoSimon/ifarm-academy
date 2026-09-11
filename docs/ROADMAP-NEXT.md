@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.64
+## Concluído até v0.65
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -13,7 +13,8 @@
 - Portal público, catálogo, trilhas públicas, perfis de instrutor, planos e ofertas White Label.
 - Busca pública unificada tenant-aware em cursos, trilhas, instrutores, eventos, planos, parceiros e bundles, com filtros/facets e ranking textual determinístico sem perfilamento comportamental.
 - Parceiros públicos por referência e bundles com cursos, trilhas, planos e itens externos, sem duplicar cadastros mestres/estoque/contratos do ecossistema.
-- Curadoria editorial/contextual tenant-aware para Home e detalhe de curso, com contrato preparado para outras superfícies, composição ordenada, janela de validade e revalidação White Label, sem histórico do visitante, perfilamento ou lead automático.
+- Curadoria editorial/contextual tenant-aware em Home, curso, trilha, instrutor, evento, plano, parceiro e bundle, com composição ordenada, janela de validade e revalidação White Label, sem histórico do visitante, perfilamento ou lead automático.
+- Página pública de detalhe de evento sem exposição de `meeting_url`, com busca/curadoria apontando para o contexto do evento.
 - Marketplace foundation com submissão/revisão/publicação e comissão versionada sem percentual padrão.
 - Motor comercial consentido, privacidade/revogação LGPD, outbox, handoff, conversão e worker boundary.
 - Gamificação foundation e Notification Center in-app.
@@ -33,7 +34,7 @@
   - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado;
   - Learning Signals calculados on-demand a partir de progresso/aulas/tentativas do ciclo;
   - recomendações acadêmicas sem diagnóstico, score de capacidade, provider externo ou perfilamento comercial.
-- 40 migrations versionadas e fixtures D1-compatible por módulo na v0.64.
+- 40 migrations versionadas e fixtures D1-compatible por módulo na v0.65.
 
 ## Próximas prioridades
 1. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
@@ -41,7 +42,7 @@
 3. **Subscriptions & entitlements:** ativação, renovação e cancelamento por eventos confiáveis de pagamento/contrato.
 4. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
 5. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core; hoje apenas capabilities foram encontradas.
-6. **Portal avançado — próxima camada:** expandir curadoria editorial para trilhas, instrutores, eventos, planos, parceiros e bundles e, se houver decisão de produto, avaliar preferências consentidas sem histórico comportamental implícito.
+6. **Portal avançado — próxima decisão:** avaliar preferências explícitas/consentidas ou manter somente curadoria editorial; nenhuma personalização comportamental implícita será adicionada sem decisão de produto/LGPD.
 7. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
 8. **Homologação e promoção:** executar matriz STAGE, corrigir findings e somente depois promover `main`/produção.
 
@@ -64,7 +65,7 @@
 - Curadoria pública é explícita/editorial, não usa identidade do visitante, histórico de navegação, score comportamental ou geração automática de lead.
 - Parceiros públicos são projeções por referência; a Academy não assume cadastro mestre, contrato ou dados privados do sistema de origem.
 - Bundles não duplicam estoque, produto, apólice, crédito, contrato ou entitlement e não habilitam checkout por si só.
-- Evento pago não gera inscrição/entitlement sem confirmação de checkout.
+- Evento pago não gera inscrição/entitlement sem confirmação de checkout e o portal público nunca expõe link privado de reunião.
 - Marketplace não assume percentual, split, repasse ou regra fiscal; tudo deve ser explícito/versionado.
 - White Label não executa CSS/HTML arbitrário nem provisiona DNS automaticamente.
 - Logs não devem registrar PII, secrets, respostas de prova ou corpos sensíveis.

@@ -136,7 +136,7 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     type: 'event', id: String(row.id), slug: null, title: String(row.title),
     description: String(row.description || ''), category: row.event_type ?? null, level: null,
     accessModel: row.access_model ?? null, modality: row.modality ?? null, startsAt: row.starts_at ?? null,
-    imageRef: null, featured: false, href: '/events',
+    imageRef: null, featured: false, href: `/events/${row.id}`,
     meta: [row.venue_name, row.address_text, Number(row.smart_farm_experience) === 1 ? 'Smart Farm Experience' : null]
       .filter((value): value is string => typeof value === 'string' && value.length > 0),
   })

@@ -98,6 +98,9 @@ jobs:
       - name: Editorial recommendations fixtures
         run: python3 scripts/integration_editorial_recommendations_contract.py
 
+      - name: Editorial multisurface contract
+        run: python3 scripts/editorial_multisurface_contract.py
+
       - name: Plans and subscriptions fixtures
         run: python3 scripts/integration_plans_contract.py
 

@@ -4,6 +4,7 @@ import { AcademySessionGate } from './pages/AcademySessionGate'
 import { AcademyWorkspacePage } from './pages/AcademyWorkspacePage'
 import { PublicCertificateValidationPage } from './pages/PublicCertificateValidationPage'
 import { PublicDiscoveryPage } from './pages/PublicDiscoveryPage'
+import { PublicEventDetailPage } from './pages/PublicEventDetailPage'
 import { PublicPartnersBundlesPage } from './pages/PublicPartnersBundlesPage'
 import { PublicPlansPage } from './pages/PublicPlansPage'
 import { PublicPortalPage } from './pages/PublicPortalPage'
@@ -20,6 +21,7 @@ const publicCertificateRoute = pathname === '/certificates/validate'
 const smartFarmCheckinRoute = pathname === '/smart-farm/checkin'
 const workspaceRoute = pathname === '/app' || pathname.startsWith('/app/')
 const publicSearchRoute = pathname === '/search'
+const publicEventDetailRoute = /^\/events\/[^/]+$/.test(pathname)
 const publicPartnersBundlesRoute = pathname === '/partners' || pathname.startsWith('/partners/') || pathname === '/bundles' || pathname.startsWith('/bundles/')
 const publicPlansRoute = pathname === '/plans' || pathname.startsWith('/plans/')
 const publicDiscoveryRoute = pathname === '/paths' || pathname.startsWith('/paths/') || pathname === '/instructors' || pathname.startsWith('/instructors/')
@@ -34,12 +36,14 @@ createRoot(document.getElementById('root')!).render(
           ? <AcademySessionGate><AcademyWorkspacePage /></AcademySessionGate>
           : publicSearchRoute
             ? <PublicSearchPage />
-            : publicPartnersBundlesRoute
-              ? <PublicPartnersBundlesPage />
-              : publicPlansRoute
-                ? <PublicPlansPage />
-                : publicDiscoveryRoute
-                  ? <PublicDiscoveryPage />
-                  : <PublicPortalPage />}
+            : publicEventDetailRoute
+              ? <PublicEventDetailPage />
+              : publicPartnersBundlesRoute
+                ? <PublicPartnersBundlesPage />
+                : publicPlansRoute
+                  ? <PublicPlansPage />
+                  : publicDiscoveryRoute
+                    ? <PublicDiscoveryPage />
+                    : <PublicPortalPage />}
   </React.StrictMode>,
 )
