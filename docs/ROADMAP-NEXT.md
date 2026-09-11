@@ -20,7 +20,20 @@
 - Gamificação foundation e Notification Center in-app.
 - Lockfile íntegro e CI determinístico com `npm ci`.
 - Pipeline Cloudflare STAGE/PRODUCTION com isolamento de recursos e contratos de smoke/deploy.
-- AI Tutor v0.56–v0.61 com fontes autorizadas, `evidence_only`, provider-neutral opcional, quotas, guardrails, citações, Learning Tools e Learning Signals sem efeito em nota/certificação ou perfil comercial.
+- AI Tutor v0.56–v0.61:
+  - fontes acadêmicas autorizadas e tenant/enrollment isolation;
+  - governança explícita de conteúdo;
+  - `evidence_only` e `insufficient_context` fail-safe;
+  - provider-neutral `gateway_v1` opcional;
+  - autorização generativa separada e vinculada à versão publicada;
+  - opt-in por pergunta, minimização de PII e citações obrigatórias;
+  - quotas versionadas por tenant/curso/aluno;
+  - reservas atômicas contra concorrência;
+  - guardrails de prompt injection e painel operacional;
+  - resumos, flashcards e exercícios de prática grounded em fontes autorizadas;
+  - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado;
+  - Learning Signals calculados on-demand a partir de progresso/aulas/tentativas do ciclo;
+  - recomendações acadêmicas sem diagnóstico, score de capacidade, provider externo ou perfilamento comercial.
 - 40 migrations versionadas e fixtures D1-compatible por módulo na v0.65.
 
 ## Próximas prioridades
@@ -42,11 +55,14 @@
 - Qualificação verificada não equivale a habilitação legal automática; responsabilidade técnica exige decisão humana registrada.
 - Curso publicado não implica autorização para IA; conteúdo e geração externa possuem aprovações independentes.
 - Provider externo do Tutor é opcional e `evidence_only` permanece fallback permanente.
+- Geração externa exige, em conjunto: conteúdo autorizado, curso publicado, versão generativa aprovada, provider configurado, evidência disponível, opt-in da pergunta, quota ativa de tenant e guardrails liberados.
+- Quotas não possuem valores padrão; chamadas/caracteres não são apresentados como tokens ou custo financeiro.
+- Guardrails armazenam códigos/flags e métricas, nunca prompt bruto como telemetria operacional.
 - Nenhum conteúdo técnico ausente nas fontes pode ser completado como fato pelo Tutor.
 - Learning Tools são materiais de estudo e não escrevem em avaliação, nota, progresso, conclusão ou certificado.
 - Learning Signals são efêmeros/read-only e não podem ser reutilizados para diagnóstico ou perfil comercial automático.
 - Busca pública não consulta histórico do visitante, não cria lead e não faz perfilamento comportamental/comercial.
-- Curadoria pública é explícita/editorial e não usa identidade do visitante, histórico de navegação, score comportamental ou geração automática de lead.
+- Curadoria pública é explícita/editorial, não usa identidade do visitante, histórico de navegação, score comportamental ou geração automática de lead.
 - Parceiros públicos são projeções por referência; a Academy não assume cadastro mestre, contrato ou dados privados do sistema de origem.
 - Bundles não duplicam estoque, produto, apólice, crédito, contrato ou entitlement e não habilitam checkout por si só.
 - Evento pago não gera inscrição/entitlement sem confirmação de checkout e o portal público nunca expõe link privado de reunião.
