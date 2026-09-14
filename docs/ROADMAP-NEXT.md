@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.68
+## Concluído até v0.69
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -17,19 +17,21 @@
 - Gamificação foundation e Notification Center in-app.
 - Pipeline Cloudflare STAGE/PRODUCTION com isolamento de recursos e contratos de smoke/deploy.
 - AI Tutor grounded com conteúdo autorizado, provider boundary, quotas/guardrails, Learning Tools e Learning Signals sem efeito em nota/certificação.
-- Checkout & Payment Boundary v0.68:
+- Checkout/payment v0.68–v0.69:
   - checkout local com preço server-side imutável;
-  - subscription permanece `pending_payment` até confirmação confiável;
-  - ledger de eventos de provider idempotente/imutável;
-  - projeção de estado de pagamento;
-  - entitlement com evidência obrigatória;
-  - provider Mercado Pago fail-closed mesmo com credenciais, até adapter homologado.
-- 41 migrations versionadas e fixtures D1-compatible por módulo na v0.68.
+  - subscription começa `pending_payment`;
+  - ledger provider idempotente/imutável e estado financeiro projetado;
+  - entitlement exige evidência explícita;
+  - processor interno ativa subscription/entitlement somente com evento confirmado contendo payment id, subscription id e período verificados;
+  - reuse de provider event em outro checkout é rejeitado;
+  - refund registra estado financeiro, mas não revoga acesso sem política aprovada;
+  - Mercado Pago continua fail-closed até adapter de assinatura/webhook homologado.
+- 42 migrations versionadas e fixtures D1-compatible por módulo na v0.69.
 
 ## Próximas prioridades
 1. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
 2. **Mercado Pago adapter:** implementar criação de checkout/preference e verificação oficial de webhook em STAGE; somente depois habilitar `checkoutEnabled`.
-3. **Payment processing & subscriptions:** transformar apenas eventos provider-verificados em ativação/renovação/cancelamento; políticas de refund/inadimplência continuam TBD.
+3. **Payment renewals/cancellation:** mapear eventos provider-verificados para renovação/past_due/cancelamento após política comercial/refund/inadimplência aprovada.
 4. **Checkout por usuário/licença:** definir regra corporativa de quantidade, proration e limites antes de habilitar preço `per_user`.
 5. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
 6. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core.
@@ -48,7 +50,9 @@
 - White Label não executa CSS/HTML arbitrário nem provisiona DNS automaticamente.
 - Checkout nunca confia em preço/status de pagamento enviados pelo browser.
 - `payment_state=confirmed` exige evento provider-verificado; evento é idempotente e evidência imutável.
-- Entitlement ativo exige evidência explícita e fonte válida; credencial de gateway, por si só, não habilita checkout.
+- Evento confirmado de subscription exige provider payment id, provider subscription id e período válido.
+- Entitlement ativo exige evidência explícita e subscription ativa; credencial de gateway, por si só, não habilita checkout.
+- Refund não revoga acesso automaticamente enquanto a política estiver TBD.
 - Plano `per_user` permanece sem checkout até definição/homologação de quantidade/licenças.
 - Logs não devem registrar PII, secrets, respostas de prova ou corpos sensíveis.
 - RPO, RTO, CNAE, regras fiscais, política de refund e percentual de comissão permanecem TBD até decisão humana.

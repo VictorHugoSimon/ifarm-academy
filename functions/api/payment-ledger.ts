@@ -22,10 +22,14 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     ORDER BY c.created_at DESC LIMIT ?`).bind(auth.tenantId, checkoutId, checkoutId, limit).all()
 
   const events = checkoutId
-    ? await db.prepare(`SELECT id,checkout_session_id,provider,provider_event_id,event_type,provider_payment_id,
-        amount_cents,currency,payload_hash,verified_at,received_at,processing_status,processed_at,error_code
+    ? await db.prepare(`SELECT id,checkout_session_id,provider,provider_event_id,event_type,provider_payment_id,provider_subscription_id,
+        amount_cents,currency,payload_hash,verified_at,received_at,period_start,period_end,processing_status,processed_at,error_code
       FROM academy_payment_events WHERE tenant_id=? AND checkout_session_id=? ORDER BY received_at DESC`)
       .bind(auth.tenantId, checkoutId).all()
+    : { results: [] }
+  const processing = checkoutId
+    ? await db.prepare(`SELECT id,payment_event_id,outcome,detail_code,created_at FROM academy_payment_processing_log
+      WHERE tenant_id=? AND checkout_session_id=? ORDER BY created_at DESC`).bind(auth.tenantId, checkoutId).all()
     : { results: [] }
 
   return json({
@@ -40,12 +44,18 @@ export const onRequestGet = async ({ env, request }: { env: Env; request: Reques
     events: (events.results as any[]).map((row) => ({
       id: row.id, checkoutSessionId: row.checkout_session_id, provider: row.provider,
       providerEventId: row.provider_event_id, eventType: row.event_type, providerPaymentId: row.provider_payment_id ?? null,
+      providerSubscriptionId: row.provider_subscription_id ?? null,
       amountCents: Number(row.amount_cents), currency: row.currency, payloadHash: row.payload_hash,
-      verifiedAt: row.verified_at, receivedAt: row.received_at, processingStatus: row.processing_status,
-      processedAt: row.processed_at ?? null, errorCode: row.error_code ?? null,
+      verifiedAt: row.verified_at, receivedAt: row.received_at, periodStart: row.period_start ?? null, periodEnd: row.period_end ?? null,
+      processingStatus: row.processing_status, processedAt: row.processed_at ?? null, errorCode: row.error_code ?? null,
+    })),
+    processing: (processing.results as any[]).map((row) => ({
+      id: row.id, paymentEventId: row.payment_event_id ?? null, outcome: row.outcome,
+      detailCode: row.detail_code, createdAt: row.created_at,
     })),
     provider: paymentProviderReadiness(env),
     writeEnabled: false,
-    note: 'A v0.68 não expõe endpoint HTTP para confirmar pagamento. Eventos só poderão ser gravados por um adapter com verificação de assinatura homologada.',
+    refundAccessPolicy: 'tbd_no_automatic_revocation',
+    note: 'Eventos são processados apenas pelo boundary server-side após verificação de provider. O browser não possui endpoint para confirmar pagamento.',
   })
 }
