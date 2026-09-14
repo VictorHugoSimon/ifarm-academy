@@ -110,6 +110,9 @@ jobs:
       - name: Checkout, payment and entitlement fixtures
         run: python3 scripts/integration_checkout_payment_contract.py
 
+      - name: Verified payment processor fixtures
+        run: python3 scripts/integration_payment_processor_contract.py
+
       - name: Commercial engine and consent fixtures
         run: python3 scripts/integration_commercial_engine_contract.py
 
