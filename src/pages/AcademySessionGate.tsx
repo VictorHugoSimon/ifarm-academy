@@ -3,6 +3,7 @@ import { AcademySessionProvider } from '../session/AcademySessionContext'
 import { authClient, authConfigured } from '../services/authClient'
 import { activateCoreTenant, loadCoreSession, type CoreSessionSnapshot } from '../services/coreSessionApi'
 import { ACADEMY_SESSION_EXPIRED_EVENT } from '../services/sessionEvents'
+import '../styles/session.css'
 
 export function AcademySessionGate({ children }: { children: ReactNode }) {
   const session = authClient.useSession()
