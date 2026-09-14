@@ -56,7 +56,7 @@ except sqlite3.IntegrityError:
 try:
     conn.execute('''INSERT INTO academy_payment_events
       (id,tenant_id,checkout_session_id,provider,provider_event_id,event_type,amount_cents,currency,payload_hash,verified_at,received_at)
-      VALUES ('EVTX','T2','CHK1','mercado_pago','evt-x','confirmed',5990,'BRL',?, ?, ?)''',('a'*64,now,now))
+      VALUES ('EVTX','T2','CHK1','mercado_pago','evt-x','confirmed',5990,'BRL',?,?,?)''',('a'*64,now,now))
     raise AssertionError('cross-tenant payment event was accepted')
 except sqlite3.IntegrityError:
     pass
@@ -90,7 +90,7 @@ conn.execute('''UPDATE academy_subscriptions SET status='active',provider='merca
   WHERE id='SUB1' ''',(now,now,period_end,now))
 conn.execute('''INSERT INTO academy_entitlements
   (id,tenant_id,user_id,source_type,source_id,plan_id,status,activation_evidence_type,activation_reference,starts_at,ends_at,created_at,updated_at)
-  VALUES ('ENT1','T1','U1','subscription','SUB1','PLAN1','active','provider_event','evt-1',?,?,?,?,?)''',(now,period_end,now,now))
+  VALUES ('ENT1','T1','U1','subscription','SUB1','PLAN1','active','provider_event','evt-1',?,?,?,?)''',(now,period_end,now,now))
 
 state = conn.execute("SELECT status,last_event_id FROM academy_payment_state WHERE checkout_session_id='CHK1'").fetchone()
 assert state == ('confirmed','EVT1')
