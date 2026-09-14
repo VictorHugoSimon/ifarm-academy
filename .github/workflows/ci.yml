@@ -113,6 +113,9 @@ jobs:
       - name: Verified payment processor fixtures
         run: python3 scripts/integration_payment_processor_contract.py
 
+      - name: Mercado Pago webhook receipt fixtures
+        run: python3 scripts/integration_mercadopago_webhook_contract.py
+
       - name: Commercial engine and consent fixtures
         run: python3 scripts/integration_commercial_engine_contract.py
 
