@@ -65,23 +65,23 @@ export function normalizeVerifiedPaymentEvent(input: Record<string, unknown>): V
 
 export interface PaymentProviderReadiness {
   provider: 'mercado_pago' | 'not_configured'
-  configured: boolean
+  credentialsPresent: boolean
   checkoutEnabled: boolean
   webhookVerificationEnabled: boolean
-  reason?: string
+  reason: string
 }
 
 export function paymentProviderReadiness(env: Env): PaymentProviderReadiness {
   const provider = env.ACADEMY_PAYMENT_PROVIDER?.trim().toLowerCase()
   if (!provider) {
     return {
-      provider: 'not_configured', configured: false, checkoutEnabled: false, webhookVerificationEnabled: false,
+      provider: 'not_configured', credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false,
       reason: 'Nenhum provider de pagamento foi homologado neste ambiente.',
     }
   }
   if (provider !== 'mercado_pago') {
     return {
-      provider: 'not_configured', configured: false, checkoutEnabled: false, webhookVerificationEnabled: false,
+      provider: 'not_configured', credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false,
       reason: 'Provider configurado não é suportado pela Academy.',
     }
   }
@@ -89,10 +89,12 @@ export function paymentProviderReadiness(env: Env): PaymentProviderReadiness {
   const webhook = Boolean(env.MERCADOPAGO_WEBHOOK_SECRET?.trim())
   return {
     provider: 'mercado_pago',
-    configured: access && webhook,
-    checkoutEnabled: access && webhook,
-    webhookVerificationEnabled: webhook,
-    ...(!access || !webhook ? { reason: 'Mercado Pago ainda não possui credenciais completas no ambiente.' } : {}),
+    credentialsPresent: access && webhook,
+    checkoutEnabled: false,
+    webhookVerificationEnabled: false,
+    reason: access && webhook
+      ? 'Credenciais detectadas, mas o adapter Mercado Pago ainda não foi homologado nesta release.'
+      : 'Mercado Pago ainda não possui credenciais completas no ambiente.',
   }
 }
 
