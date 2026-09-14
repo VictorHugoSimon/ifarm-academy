@@ -36,7 +36,7 @@ async function resolveItem(db:any,tenantId:string,row:any){
       OR EXISTS (SELECT 1 FROM academy_public_bundle_courses x JOIN academy_courses c ON c.id=x.course_id AND c.tenant_id=x.tenant_id AND c.status='published' JOIN academy_course_public_profiles cp ON cp.course_id=c.id AND cp.tenant_id=c.tenant_id AND cp.visibility='public' LEFT JOIN academy_white_label_settings ws ON ws.tenant_id=x.tenant_id AND ws.status='active' LEFT JOIN academy_white_label_catalog_courses wc ON wc.tenant_id=x.tenant_id AND wc.course_id=x.course_id AND wc.visible=1 WHERE x.tenant_id=b.tenant_id AND x.bundle_id=b.id AND (ws.catalog_mode IS NULL OR ws.catalog_mode='all_tenant_courses' OR wc.course_id IS NOT NULL))
     )`).bind(tenantId,ref).first()
   if(!item)return null
-  const href=type==='course'?`/courses/${item.slug}`:type==='path'?`/paths/${item.slug}`:type==='instructor'?`/instructors/${item.slug}`:type==='event'?'/events':type==='plan'?`/plans/${item.slug}`:type==='partner'?`/partners/${item.slug}`:`/bundles/${item.slug}`
+  const href=type==='course'?`/courses/${item.slug}`:type==='path'?`/paths/${item.slug}`:type==='instructor'?`/instructors/${item.slug}`:type==='event'?`/events/${item.id}`:type==='plan'?`/plans/${item.slug}`:type==='partner'?`/partners/${item.slug}`:`/bundles/${item.slug}`
   return {type,id:String(item.id),slug:item.slug??null,title:String(item.title),description:String(item.description??''),category:item.category??null,imageRef:item.image_ref??null,href,editorialLabel:row.editorial_label??null,editorialReason:row.editorial_reason??null,position:Number(row.position)}
 }
 
