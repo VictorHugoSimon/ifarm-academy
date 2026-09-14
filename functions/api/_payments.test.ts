@@ -30,12 +30,12 @@ describe('payment boundary', () => {
     expect(normalizeVerifiedPaymentEvent({ ...valid, amountCents: 0 })).toBeNull()
   })
 
-  it('fails closed while Mercado Pago is not fully configured', () => {
-    expect(paymentProviderReadiness({})).toMatchObject({ configured: false, checkoutEnabled: false, provider: 'not_configured' })
+  it('stays fail-closed until the Mercado Pago adapter is actually homologated', () => {
+    expect(paymentProviderReadiness({})).toMatchObject({ credentialsPresent: false, checkoutEnabled: false, provider: 'not_configured' })
     expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_ACCESS_TOKEN: 'secret' }))
-      .toMatchObject({ configured: false, checkoutEnabled: false, webhookVerificationEnabled: false })
+      .toMatchObject({ credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false })
     expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_ACCESS_TOKEN: 'secret', MERCADOPAGO_WEBHOOK_SECRET: 'webhook' }))
-      .toMatchObject({ configured: true, checkoutEnabled: true, webhookVerificationEnabled: true })
+      .toMatchObject({ credentialsPresent: true, checkoutEnabled: false, webhookVerificationEnabled: false })
   })
 
   it('never activates a paid entitlement from payment state alone', () => {
