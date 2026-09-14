@@ -33,7 +33,14 @@ export async function loadRecommendationCatalog(){return (await authenticatedJso
 export async function saveRecommendationAdmin(input:{setId?:string;recommendationKey?:string;title:string;subtitle?:string;surface?:RecommendationSurface;contextRef?:string;status:'hidden'|'public';priority:number;validFrom?:string|null;validUntil?:string|null;items:Array<{itemType:RecommendationItemType;itemRef:string;editorialLabel?:string|null;editorialReason?:string|null}>}){
   return authenticatedJson('/api/public-recommendations',{method:input.setId?'PUT':'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)})
 }
+
+export function publicRecommendationRequestPath(input:{surface?:RecommendationSurface;contextRef?:string}={}):string{
+  const query=new URLSearchParams()
+  query.set('surface',input.surface??'home')
+  if(input.contextRef)query.set('contextRef',input.contextRef)
+  return `/api/public/recommendations?${query.toString()}`
+}
+
 export async function loadPublicRecommendations(input:{surface?:RecommendationSurface;contextRef?:string}={}):Promise<PublicRecommendationResponse>{
-  const url=new URL('/api/public/recommendations',window.location.origin);url.searchParams.set('surface',input.surface??'home');if(input.contextRef)url.searchParams.set('contextRef',input.contextRef)
-  return publicRequest<PublicRecommendationResponse>(url.pathname+url.search)
+  return publicRequest<PublicRecommendationResponse>(publicRecommendationRequestPath(input))
 }
