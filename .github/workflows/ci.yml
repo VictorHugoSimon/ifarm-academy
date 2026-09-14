@@ -101,6 +101,9 @@ jobs:
       - name: Public SEO fixtures
         run: python3 scripts/integration_public_seo_contract.py
 
+      - name: Performance and accessibility contract
+        run: python3 scripts/performance_accessibility_contract.py
+
       - name: Plans and subscriptions fixtures
         run: python3 scripts/integration_plans_contract.py
 
