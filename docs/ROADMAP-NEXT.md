@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.64
+## Concluído até v0.65
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -13,7 +13,7 @@
 - Portal público, catálogo, trilhas públicas, perfis de instrutor, planos e ofertas White Label.
 - Busca pública unificada tenant-aware em cursos, trilhas, instrutores, eventos, planos, parceiros e bundles, com filtros/facets e ranking textual determinístico sem perfilamento comportamental.
 - Parceiros públicos por referência e bundles com cursos, trilhas, planos e itens externos, sem duplicar cadastros mestres/estoque/contratos do ecossistema.
-- Curadoria editorial/contextual tenant-aware para Home e detalhe de curso, com contrato preparado para outras superfícies, composição ordenada, janela de validade e revalidação White Label, sem histórico do visitante, perfilamento ou lead automático.
+- Curadoria editorial/contextual tenant-aware para Home e detalhes de curso, trilha, instrutor, evento, plano, parceiro e bundle, com composição ordenada, janela de validade e revalidação White Label, sem histórico do visitante, perfilamento ou lead automático.
 - Marketplace foundation com submissão/revisão/publicação e comissão versionada sem percentual padrão.
 - Motor comercial consentido, privacidade/revogação LGPD, outbox, handoff, conversão e worker boundary.
 - Gamificação foundation e Notification Center in-app.
@@ -33,7 +33,7 @@
   - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado;
   - Learning Signals calculados on-demand a partir de progresso/aulas/tentativas do ciclo;
   - recomendações acadêmicas sem diagnóstico, score de capacidade, provider externo ou perfilamento comercial.
-- 40 migrations versionadas e fixtures D1-compatible por módulo na v0.64.
+- 40 migrations versionadas e fixtures D1-compatible por módulo na v0.65.
 
 ## Próximas prioridades
 1. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
@@ -41,7 +41,7 @@
 3. **Subscriptions & entitlements:** ativação, renovação e cancelamento por eventos confiáveis de pagamento/contrato.
 4. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
 5. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core; hoje apenas capabilities foram encontradas.
-6. **Portal avançado — próxima camada:** expandir curadoria editorial para trilhas, instrutores, eventos, planos, parceiros e bundles e, se houver decisão de produto, avaliar preferências consentidas sem histórico comportamental implícito.
+6. **Portal avançado — próxima camada:** se houver decisão de produto, avaliar preferências explicitamente consentidas e reversíveis, sem histórico comportamental implícito, mantendo a curadoria editorial como fallback determinístico.
 7. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
 8. **Homologação e promoção:** executar matriz STAGE, corrigir findings e somente depois promover `main`/produção.
 
