@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.65
+## Concluído até v0.66
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -14,6 +14,7 @@
 - Busca pública unificada tenant-aware em cursos, trilhas, instrutores, eventos, planos, parceiros e bundles, com filtros/facets e ranking textual determinístico sem perfilamento comportamental.
 - Parceiros públicos por referência e bundles com cursos, trilhas, planos e itens externos, sem duplicar cadastros mestres/estoque/contratos do ecossistema.
 - Curadoria editorial/contextual tenant-aware para Home e detalhes de curso, trilha, instrutor, evento, plano, parceiro e bundle, com composição ordenada, janela de validade e revalidação White Label, sem histórico do visitante, perfilamento ou lead automático.
+- SEO técnico tenant-aware com sitemap/robots por host, canonical e metadados sociais; ambientes não produtivos permanecem bloqueados para indexação.
 - Marketplace foundation com submissão/revisão/publicação e comissão versionada sem percentual padrão.
 - Motor comercial consentido, privacidade/revogação LGPD, outbox, handoff, conversão e worker boundary.
 - Gamificação foundation e Notification Center in-app.
@@ -33,7 +34,7 @@
   - Learning Tools em `evidence_only`, sem efeito em nota, tentativa, progresso, conclusão ou certificado;
   - Learning Signals calculados on-demand a partir de progresso/aulas/tentativas do ciclo;
   - recomendações acadêmicas sem diagnóstico, score de capacidade, provider externo ou perfilamento comercial.
-- 40 migrations versionadas e fixtures D1-compatible por módulo na v0.65.
+- 40 migrations versionadas e fixtures D1-compatible por módulo na v0.66.
 
 ## Próximas prioridades
 1. **Streaming:** escolher/homologar provider e conectar adapter existente com credenciais exclusivas por ambiente.
@@ -62,6 +63,7 @@
 - Learning Signals são efêmeros/read-only e não podem ser reutilizados para diagnóstico ou perfil comercial automático.
 - Busca pública não consulta histórico do visitante, não cria lead e não faz perfilamento comportamental/comercial.
 - Curadoria pública é explícita/editorial, não usa identidade do visitante, histórico de navegação, score comportamental ou geração automática de lead.
+- SEO público nunca inclui rotas autenticadas/utilitários e ambientes não produtivos permanecem `noindex`/`Disallow`.
 - Parceiros públicos são projeções por referência; a Academy não assume cadastro mestre, contrato ou dados privados do sistema de origem.
 - Bundles não duplicam estoque, produto, apólice, crédito, contrato ou entitlement e não habilitam checkout por si só.
 - Evento pago não gera inscrição/entitlement sem confirmação de checkout.
