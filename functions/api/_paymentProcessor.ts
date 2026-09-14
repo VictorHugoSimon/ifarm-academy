@@ -21,10 +21,11 @@ export async function processVerifiedPaymentEvent(
   const event = normalizeVerifiedPaymentEvent(input.event)
   if (!event) throw new Error('INVALID_VERIFIED_PAYMENT_EVENT')
 
-  const existing = await db.prepare(`SELECT id,event_type FROM academy_payment_events
+  const existing = await db.prepare(`SELECT id,event_type,checkout_session_id FROM academy_payment_events
     WHERE tenant_id=? AND provider=? AND provider_event_id=? LIMIT 1`)
     .bind(input.tenantId, event.provider, event.providerEventId).first()
   if (existing) {
+    if (String(existing.checkout_session_id) !== input.checkoutSessionId) throw new Error('PROVIDER_EVENT_CHECKOUT_MISMATCH')
     const state = await db.prepare('SELECT status FROM academy_payment_state WHERE tenant_id=? AND checkout_session_id=? LIMIT 1')
       .bind(input.tenantId, input.checkoutSessionId).first()
     const checkout = await db.prepare('SELECT subscription_id FROM academy_checkout_sessions WHERE tenant_id=? AND id=? LIMIT 1')
@@ -51,9 +52,7 @@ export async function processVerifiedPaymentEvent(
     JOIN academy_subscriptions s ON s.tenant_id=c.tenant_id AND s.id=c.subscription_id
     WHERE c.tenant_id=? AND c.id=? LIMIT 1`).bind(input.tenantId, input.checkoutSessionId).first()
   if (!checkout) throw new Error('CHECKOUT_NOT_FOUND')
-  if (Number(checkout.amount_cents) !== event.amountCents || String(checkout.currency) !== event.currency) {
-    throw new Error('PAYMENT_AMOUNT_MISMATCH')
-  }
+  if (Number(checkout.amount_cents) !== event.amountCents || String(checkout.currency) !== event.currency) throw new Error('PAYMENT_AMOUNT_MISMATCH')
 
   const state = await db.prepare('SELECT * FROM academy_payment_state WHERE tenant_id=? AND checkout_session_id=? LIMIT 1')
     .bind(input.tenantId, input.checkoutSessionId).first()
@@ -122,9 +121,10 @@ export async function processVerifiedPaymentEvent(
 
   try { await db.batch(statements) }
   catch (error) {
-    const duplicate = await db.prepare(`SELECT id FROM academy_payment_events WHERE tenant_id=? AND provider=? AND provider_event_id=? LIMIT 1`)
+    const duplicate = await db.prepare(`SELECT id,checkout_session_id FROM academy_payment_events WHERE tenant_id=? AND provider=? AND provider_event_id=? LIMIT 1`)
       .bind(input.tenantId, event.provider, event.providerEventId).first()
     if (duplicate) {
+      if (String(duplicate.checkout_session_id) !== input.checkoutSessionId) throw new Error('PROVIDER_EVENT_CHECKOUT_MISMATCH')
       return processVerifiedPaymentEvent(db, input)
     }
     throw error
