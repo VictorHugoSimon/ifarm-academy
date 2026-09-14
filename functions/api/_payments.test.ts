@@ -14,20 +14,25 @@ describe('payment boundary', () => {
     expect(() => nextPaymentStatus('refunded', 'confirmed')).toThrow(/invalid payment transition/)
   })
 
-  it('normalizes only verified provider events with server evidence', () => {
-    const valid = normalizeVerifiedPaymentEvent({
-      provider: 'Mercado_Pago',
-      providerEventId: 'evt-123',
-      providerPaymentId: 'pay-456',
-      eventType: 'confirmed',
-      amountCents: 5990,
-      currency: 'brl',
-      payloadHash: 'a'.repeat(64),
-      verifiedAt: '2026-09-14T18:00:00.000Z',
-    })
-    expect(valid).toMatchObject({ provider: 'mercado_pago', eventType: 'confirmed', amountCents: 5990, currency: 'BRL' })
-    expect(normalizeVerifiedPaymentEvent({ ...valid, payloadHash: 'not-a-hash' })).toBeNull()
-    expect(normalizeVerifiedPaymentEvent({ ...valid, amountCents: 0 })).toBeNull()
+  it('normalizes confirmed events only with payment/subscription and period evidence', () => {
+    const base = {
+      provider: 'Mercado_Pago', providerEventId: 'evt-123', providerPaymentId: 'pay-456', providerSubscriptionId: 'sub-789',
+      eventType: 'confirmed', amountCents: 5990, currency: 'brl', payloadHash: 'a'.repeat(64),
+      verifiedAt: '2026-09-14T18:00:00.000Z', periodStart: '2026-09-14T18:00:00.000Z', periodEnd: '2026-10-14T18:00:00.000Z',
+    }
+    const valid = normalizeVerifiedPaymentEvent(base)
+    expect(valid).toMatchObject({ provider: 'mercado_pago', eventType: 'confirmed', amountCents: 5990, currency: 'BRL', providerSubscriptionId: 'sub-789' })
+    expect(normalizeVerifiedPaymentEvent({ ...base, providerSubscriptionId: null })).toBeNull()
+    expect(normalizeVerifiedPaymentEvent({ ...base, periodEnd: '2026-08-14T18:00:00.000Z' })).toBeNull()
+    expect(normalizeVerifiedPaymentEvent({ ...base, payloadHash: 'not-a-hash' })).toBeNull()
+    expect(normalizeVerifiedPaymentEvent({ ...base, amountCents: 0 })).toBeNull()
+  })
+
+  it('accepts non-confirmation events without subscription period evidence', () => {
+    expect(normalizeVerifiedPaymentEvent({
+      provider: 'mercado_pago', providerEventId: 'evt-pending', eventType: 'pending', amountCents: 5990,
+      currency: 'BRL', payloadHash: 'b'.repeat(64), verifiedAt: '2026-09-14T18:00:00.000Z',
+    })).toMatchObject({ eventType: 'pending' })
   })
 
   it('stays fail-closed until the Mercado Pago adapter is actually homologated', () => {
