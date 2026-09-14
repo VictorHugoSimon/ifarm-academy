@@ -21,6 +21,9 @@ export interface Env {
   ACADEMY_TUTOR_PROVIDER_TOKEN?: string
   ACADEMY_TUTOR_PROVIDER_TIMEOUT_MS?: string
   ACADEMY_TUTOR_PROVIDER_MAX_OUTPUT_CHARS?: string
+  ACADEMY_PAYMENT_PROVIDER?: string
+  MERCADOPAGO_ACCESS_TOKEN?: string
+  MERCADOPAGO_WEBHOOK_SECRET?: string
 }
 
 export function json(data: unknown, status = 200): Response {
