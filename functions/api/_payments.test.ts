@@ -35,12 +35,12 @@ describe('payment boundary', () => {
     })).toMatchObject({ eventType: 'pending' })
   })
 
-  it('stays fail-closed until the Mercado Pago adapter is actually homologated', () => {
+  it('enables only HMAC ingress when the webhook secret exists', () => {
     expect(paymentProviderReadiness({})).toMatchObject({ credentialsPresent: false, checkoutEnabled: false, provider: 'not_configured' })
     expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_ACCESS_TOKEN: 'secret' }))
-      .toMatchObject({ credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false })
+      .toMatchObject({ credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false, canonicalResourceFetchEnabled: false })
     expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_ACCESS_TOKEN: 'secret', MERCADOPAGO_WEBHOOK_SECRET: 'webhook' }))
-      .toMatchObject({ credentialsPresent: true, checkoutEnabled: false, webhookVerificationEnabled: false })
+      .toMatchObject({ credentialsPresent: true, checkoutEnabled: false, webhookVerificationEnabled: true, canonicalResourceFetchEnabled: false })
   })
 
   it('never activates a paid entitlement from payment state alone', () => {

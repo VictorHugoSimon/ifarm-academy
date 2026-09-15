@@ -82,18 +82,33 @@ export interface PaymentProviderReadiness {
   credentialsPresent: boolean
   checkoutEnabled: boolean
   webhookVerificationEnabled: boolean
+  canonicalResourceFetchEnabled: boolean
   reason: string
 }
 
 export function paymentProviderReadiness(env: Env): PaymentProviderReadiness {
   const provider = env.ACADEMY_PAYMENT_PROVIDER?.trim().toLowerCase()
-  if (!provider) return { provider: 'not_configured', credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false, reason: 'Nenhum provider de pagamento foi homologado neste ambiente.' }
-  if (provider !== 'mercado_pago') return { provider: 'not_configured', credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false, reason: 'Provider configurado não é suportado pela Academy.' }
+  if (!provider) return {
+    provider: 'not_configured', credentialsPresent: false, checkoutEnabled: false,
+    webhookVerificationEnabled: false, canonicalResourceFetchEnabled: false,
+    reason: 'Nenhum provider de pagamento foi homologado neste ambiente.',
+  }
+  if (provider !== 'mercado_pago') return {
+    provider: 'not_configured', credentialsPresent: false, checkoutEnabled: false,
+    webhookVerificationEnabled: false, canonicalResourceFetchEnabled: false,
+    reason: 'Provider configurado não é suportado pela Academy.',
+  }
   const access = Boolean(env.MERCADOPAGO_ACCESS_TOKEN?.trim())
   const webhook = Boolean(env.MERCADOPAGO_WEBHOOK_SECRET?.trim())
   return {
-    provider: 'mercado_pago', credentialsPresent: access && webhook, checkoutEnabled: false, webhookVerificationEnabled: false,
-    reason: access && webhook ? 'Credenciais detectadas, mas o adapter Mercado Pago ainda não foi homologado nesta release.' : 'Mercado Pago ainda não possui credenciais completas no ambiente.',
+    provider: 'mercado_pago',
+    credentialsPresent: access && webhook,
+    checkoutEnabled: false,
+    webhookVerificationEnabled: webhook,
+    canonicalResourceFetchEnabled: false,
+    reason: webhook
+      ? 'Verificação HMAC de Webhook implementada; consulta canônica ao recurso e criação externa ainda permanecem desabilitadas.'
+      : 'Mercado Pago ainda não possui chave de Webhook configurada no ambiente.',
   }
 }
 
