@@ -100,15 +100,18 @@ export function paymentProviderReadiness(env: Env): PaymentProviderReadiness {
   }
   const access = Boolean(env.MERCADOPAGO_ACCESS_TOKEN?.trim())
   const webhook = Boolean(env.MERCADOPAGO_WEBHOOK_SECRET?.trim())
+  const canonical = access && webhook
   return {
     provider: 'mercado_pago',
-    credentialsPresent: access && webhook,
+    credentialsPresent: canonical,
     checkoutEnabled: false,
     webhookVerificationEnabled: webhook,
-    canonicalResourceFetchEnabled: false,
-    reason: webhook
-      ? 'Verificação HMAC de Webhook implementada; consulta canônica ao recurso e criação externa ainda permanecem desabilitadas.'
-      : 'Mercado Pago ainda não possui chave de Webhook configurada no ambiente.',
+    canonicalResourceFetchEnabled: canonical,
+    reason: canonical
+      ? 'Webhook HMAC e consulta canônica server-side estão habilitados. Criação externa de checkout/assinatura continua desabilitada até homologação própria.'
+      : webhook
+        ? 'Webhook HMAC está habilitado, mas a consulta canônica exige MERCADOPAGO_ACCESS_TOKEN.'
+        : 'Mercado Pago ainda não possui chave de Webhook configurada no ambiente.',
   }
 }
 
