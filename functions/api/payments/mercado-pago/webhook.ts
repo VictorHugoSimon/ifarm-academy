@@ -5,6 +5,7 @@ import {
   verifyMercadoPagoWebhookSignature,
 } from '../../_mercadoPagoWebhook'
 import { processMercadoPagoReceipt } from '../../_mercadoPagoReceiptProcessor'
+import { paymentRetryAt } from '../../_paymentReconciliation'
 import { dbOr503, json, type Env } from '../../_shared'
 
 const MAX_BODY_CHARS = 128_000
@@ -13,6 +14,18 @@ function safeText(value: unknown, max: number): string | null {
   if (typeof value !== 'string' && typeof value !== 'number') return null
   const text = String(value).trim()
   return text && text.length <= max ? text : null
+}
+
+async function finalizeQueueState(db: any, receiptId: string, retryable: boolean, detailCode: string) {
+  if (retryable) {
+    await db.prepare(`UPDATE academy_payment_webhook_receipts SET
+      reconcile_state='scheduled',reconcile_claim_token=NULL,reconcile_claimed_at=NULL,reconcile_next_attempt_at=?,
+      reconcile_last_error=? WHERE id=?`).bind(paymentRetryAt(new Date(), 1), detailCode, receiptId).run()
+    return
+  }
+  await db.prepare(`UPDATE academy_payment_webhook_receipts SET
+    reconcile_state='done',reconcile_claim_token=NULL,reconcile_claimed_at=NULL,reconcile_next_attempt_at=NULL,
+    reconcile_last_error=? WHERE id=?`).bind(detailCode === 'payment_confirmed' ? null : detailCode, receiptId).run()
 }
 
 export const onRequestPost = async ({ env, request }: { env: Env; request: Request }) => {
@@ -85,10 +98,13 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
 
   if (!receipt) return json({ error: 'WEBHOOK_RECEIPT_NOT_FOUND' }, 503)
   if (classification !== 'supported') {
+    await finalizeQueueState(db, String(receipt.id), false, 'unsupported_notification_type')
     return json({ accepted: true, idempotent: true, status: 'ignored', receiptId: receipt.id })
   }
 
   const result = await processMercadoPagoReceipt(env, db, receipt)
+  await finalizeQueueState(db, String(receipt.id), result.retryable, result.detailCode)
+
   if (result.retryable && result.status === 'verified_pending_resource_fetch') {
     return json({ accepted: false, status: result.status, receiptId: receipt.id, error: result.detailCode }, 503)
   }
