@@ -25,13 +25,14 @@ import { PublicDiscoveryGovernancePage } from './PublicDiscoveryGovernancePage'
 import { PublicPortalGovernancePage } from './PublicPortalGovernancePage'
 import { ReportsPage } from './ReportsPage'
 import { SmartFarmExperiencePage } from './SmartFarmExperiencePage'
+import { SubscriptionCheckoutPage } from './SubscriptionCheckoutPage'
 import { TutorPage } from './TutorPage'
 import { WhiteLabelPage } from './WhiteLabelPage'
 import { loadWhiteLabelContext, type WhiteLabelBrand } from '../services/whiteLabelApi'
 import '../styles/assessment-cert.css'
 import '../styles/lesson-content.css'
 
-type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'editorial-recommendations' | 'partners-bundles' | 'plans' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'tutor' | 'gamification' | 'notifications' | 'review' | 'certificate'
+type WorkspaceView = 'course' | 'quiz' | 'publication' | 'public-portal' | 'public-discovery' | 'editorial-recommendations' | 'partners-bundles' | 'plans' | 'subscription' | 'commercial' | 'commercial-privacy' | 'catalog' | 'enterprise' | 'enterprise-paths' | 'events' | 'smart-farm' | 'marketplace' | 'white-label' | 'instructors' | 'reports' | 'operations' | 'certificate-validity' | 'student' | 'tutor' | 'gamification' | 'notifications' | 'review' | 'certificate'
 
 const tabs: Array<[WorkspaceView, string]> = [
   ['course', 'Course Builder'],
@@ -42,6 +43,7 @@ const tabs: Array<[WorkspaceView, string]> = [
   ['editorial-recommendations', 'Curadoria do Portal'],
   ['partners-bundles', 'Parceiros & Bundles'],
   ['plans', 'Planos & Ofertas'],
+  ['subscription', 'Minha assinatura'],
   ['commercial', 'Motor Comercial'],
   ['commercial-privacy', 'Privacidade comercial'],
   ['catalog', 'Catálogo e matrículas'],
@@ -69,9 +71,17 @@ const academyAdminViews = new Set<WorkspaceView>([
 ])
 const enterpriseViews = new Set<WorkspaceView>(['enterprise', 'enterprise-paths'])
 
+function initialWorkspaceView(academyAdmin: boolean, enterpriseManager: boolean): WorkspaceView {
+  const requested = new URLSearchParams(window.location.search).get('view')
+  if (window.location.pathname === '/app/payment-return' || requested === 'subscription') return 'subscription'
+  if (academyAdmin) return 'course'
+  if (enterpriseManager) return 'enterprise'
+  return 'catalog'
+}
+
 export function AcademyWorkspacePage() {
   const { academyAdmin, enterpriseManager, ifarmOperations } = useAcademySession()
-  const [view, setView] = useState<WorkspaceView>(() => academyAdmin ? 'course' : enterpriseManager ? 'enterprise' : 'catalog')
+  const [view, setView] = useState<WorkspaceView>(() => initialWorkspaceView(academyAdmin, enterpriseManager))
   const [runtimeBrand, setRuntimeBrand] = useState<WhiteLabelBrand | null>(null)
 
   function canView(candidate: WorkspaceView) {
@@ -98,7 +108,7 @@ export function AcademyWorkspacePage() {
         <div>
           <small>{runtimeBrand?.academyName || 'iFarm Academy'} · Núcleo acadêmico</small>
           <h1>Operação integrada da Academy</h1>
-          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, curadoria editorial sem perfilamento, trilhas, instrutores, parceiros, bundles, planos, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, Tutor IA com conteúdo autorizado, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
+          <p className="workspaceIntro">Criação, avaliação, publicação, portal público, curadoria editorial sem perfilamento, trilhas, instrutores, parceiros, bundles, planos, assinatura protegida, motor comercial consentido, privacidade comercial, matrícula, educação corporativa, eventos, Smart Farm Experience, marketplace, white label, governança técnica, relatórios, observabilidade, experiência do aluno, Tutor IA com conteúdo autorizado, gamificação, notificações, revisão e certificação no mesmo fluxo.</p>
         </div>
       </div>
 
@@ -116,6 +126,7 @@ export function AcademyWorkspacePage() {
       {view === 'editorial-recommendations' && <EditorialRecommendationsPage />}
       {view === 'partners-bundles' && <PartnersBundlesGovernancePage />}
       {view === 'plans' && <PlansGovernancePage />}
+      {view === 'subscription' && <SubscriptionCheckoutPage />}
       {view === 'commercial' && <CommercialEnginePage />}
       {view === 'commercial-privacy' && <CommercialPrivacyPage />}
       {view === 'catalog' && <EnrollmentCatalogPage />}
