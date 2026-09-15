@@ -1,0 +1,20 @@
+{
+  "name": "iFarm Academy",
+  "short_name": "iFarm Academy",
+  "description": "Educação digital integrada ao ecossistema iFarm.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f9f8",
+  "theme_color": "#00583f",
+  "lang": "pt-BR",
+  "categories": ["education", "business", "productivity"],
+  "icons": [
+    {
+      "src": "/ifarm-academy-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
