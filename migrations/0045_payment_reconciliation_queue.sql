@@ -34,10 +34,4 @@ BEGIN
   SELECT CASE WHEN NEW.reconcile_state IN ('scheduled','done','dead_letter') AND (
     NEW.reconcile_claim_token IS NOT NULL OR NEW.reconcile_claimed_at IS NOT NULL
   ) THEN RAISE(ABORT,'non-claimed reconciliation cannot retain claim') END;
-
-  SELECT CASE WHEN NEW.reconcile_state='scheduled' AND NEW.status IN ('processed','ignored','failed')
-    THEN RAISE(ABORT,'terminal receipt cannot be scheduled for reconciliation') END;
-
-  SELECT CASE WHEN NEW.reconcile_state='done' AND NEW.status NOT IN ('processed','ignored','failed','canonical_verified')
-    THEN RAISE(ABORT,'done reconciliation requires non-retryable receipt state') END;
 END;
