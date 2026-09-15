@@ -14,6 +14,12 @@ function asStatus(value: unknown): PaymentStatus {
   return ['pending','confirmed','failed','cancelled','refunded'].includes(text) ? text : 'pending'
 }
 
+function billingEvidenceStatus(periodStart?: string | null, periodEnd?: string | null): 'complete' | 'partial' | 'unavailable' {
+  if (periodStart && periodEnd) return 'complete'
+  if (periodStart || periodEnd) return 'partial'
+  return 'unavailable'
+}
+
 export async function processVerifiedPaymentEvent(
   db: any,
   input: { tenantId: string; checkoutSessionId: string; event: Record<string, unknown> },
@@ -81,13 +87,27 @@ export async function processVerifiedPaymentEvent(
 
   let accessAction: PaymentProcessingResult['accessAction'] = 'unchanged'
   if (next === 'confirmed') {
+    const accessStartsAt = event.periodStart ?? event.verifiedAt
+    if (event.providerResourceType && event.providerResourceId && event.providerSubscriptionId) {
+      statements.push(
+        db.prepare(`INSERT INTO academy_subscription_billing_period_evidence
+          (id,tenant_id,subscription_id,checkout_session_id,payment_event_id,provider,provider_resource_type,
+           provider_resource_id,provider_subscription_id,evidence_status,period_start,period_end,observed_at,payload_hash,source,created_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'canonical_provider_resource',?)`).bind(
+          crypto.randomUUID(), input.tenantId, checkout.subscription_id, input.checkoutSessionId, eventId, event.provider,
+          event.providerResourceType, event.providerResourceId, event.providerSubscriptionId,
+          billingEvidenceStatus(event.periodStart, event.periodEnd), event.periodStart ?? null, event.periodEnd ?? null,
+          event.periodEvidenceObservedAt ?? event.verifiedAt, event.payloadHash, now,
+        ),
+      )
+    }
     statements.push(
       db.prepare(`UPDATE academy_checkout_sessions SET status='confirmed',provider=?,provider_checkout_id=COALESCE(provider_checkout_id,?),updated_at=?
         WHERE tenant_id=? AND id=?`).bind(event.provider, event.providerPaymentId ?? null, now, input.tenantId, input.checkoutSessionId),
       db.prepare(`UPDATE academy_subscriptions SET status='active',provider=?,provider_subscription_id=?,activation_reference=?,
         started_at=COALESCE(started_at,?),current_period_start=?,current_period_end=?,updated_at=?
         WHERE tenant_id=? AND id=? AND status IN ('pending_payment','past_due')`).bind(
-        event.provider, event.providerSubscriptionId, activationReference, event.periodStart, event.periodStart, event.periodEnd,
+        event.provider, event.providerSubscriptionId, activationReference, accessStartsAt, event.periodStart ?? null, event.periodEnd ?? null,
         now, input.tenantId, checkout.subscription_id,
       ),
       db.prepare(`INSERT INTO academy_entitlements
@@ -97,7 +117,7 @@ export async function processVerifiedPaymentEvent(
           status='active',activation_evidence_type='verified_provider_event',activation_reference=excluded.activation_reference,
           starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at`).bind(
         crypto.randomUUID(), input.tenantId, checkout.user_id, checkout.subscription_id, checkout.plan_id,
-        activationReference, event.periodStart, event.periodEnd, now, now,
+        activationReference, accessStartsAt, event.periodEnd ?? null, now, now,
       ),
     )
     accessAction = 'activated'

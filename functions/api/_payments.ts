@@ -8,6 +8,9 @@ export interface VerifiedPaymentEventInput {
   providerEventId: string
   providerPaymentId?: string | null
   providerSubscriptionId?: string | null
+  providerResourceType?: string | null
+  providerResourceId?: string | null
+  periodEvidenceObservedAt?: string | null
   eventType: VerifiedPaymentEventType
   amountCents: number
   currency: string
@@ -64,6 +67,9 @@ export function normalizeVerifiedPaymentEvent(input: Record<string, unknown>): V
   const providerEventId = typeof input.providerEventId === 'string' ? input.providerEventId.trim() : ''
   const providerPaymentId = optionalString(input.providerPaymentId)
   const providerSubscriptionId = optionalString(input.providerSubscriptionId)
+  const providerResourceType = optionalString(input.providerResourceType, 80)
+  const providerResourceId = optionalString(input.providerResourceId, 200)
+  const periodEvidenceObservedAt = optionalString(input.periodEvidenceObservedAt, 80)
   const eventType = typeof input.eventType === 'string' ? input.eventType.trim().toLowerCase() : ''
   const amountCents = Number(input.amountCents)
   const currency = normalizeCurrency(input.currency)
@@ -77,14 +83,15 @@ export function normalizeVerifiedPaymentEvent(input: Record<string, unknown>): V
   if (!Number.isInteger(amountCents) || amountCents <= 0 || !currency) return null
   if (!/^[a-f0-9]{64}$/.test(payloadHash)) return null
   if (!verifiedAt || Number.isNaN(Date.parse(verifiedAt))) return null
-  if (eventType === 'confirmed') {
-    if (!providerPaymentId || !providerSubscriptionId || !validIso(periodStart) || !validIso(periodEnd)) return null
-    if (Date.parse(periodEnd!) <= Date.parse(periodStart!)) return null
-  }
+  if ((providerResourceType && !providerResourceId) || (!providerResourceType && providerResourceId)) return null
+  if (periodEvidenceObservedAt && !validIso(periodEvidenceObservedAt)) return null
+  if (eventType === 'confirmed' && (!providerPaymentId || !providerSubscriptionId)) return null
   if ((periodStart && !validIso(periodStart)) || (periodEnd && !validIso(periodEnd))) return null
+  if (periodStart && periodEnd && Date.parse(periodEnd) <= Date.parse(periodStart)) return null
 
   return {
     provider, providerEventId, providerPaymentId, providerSubscriptionId,
+    providerResourceType, providerResourceId, periodEvidenceObservedAt,
     eventType: eventType as VerifiedPaymentEventType,
     amountCents, currency, payloadHash, verifiedAt, periodStart, periodEnd,
   }

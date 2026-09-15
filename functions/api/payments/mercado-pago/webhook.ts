@@ -20,28 +20,6 @@ function safeText(value: unknown, max: number): string | null {
   return text && text.length <= max ? text : null
 }
 
-function addBillingInterval(start: string, interval: string): string | null {
-  const date = new Date(start)
-  if (Number.isNaN(date.getTime())) return null
-  const originalDay = date.getUTCDate()
-  if (interval === 'monthly') {
-    date.setUTCDate(1)
-    date.setUTCMonth(date.getUTCMonth() + 1)
-    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
-    date.setUTCDate(Math.min(originalDay, lastDay))
-    return date.toISOString()
-  }
-  if (interval === 'annual') {
-    date.setUTCDate(1)
-    date.setUTCFullYear(date.getUTCFullYear() + 1)
-    date.setUTCMonth(new Date(start).getUTCMonth())
-    const lastDay = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()
-    date.setUTCDate(Math.min(originalDay, lastDay))
-    return date.toISOString()
-  }
-  return null
-}
-
 function resourceFromReceipt(row: any): MercadoPagoCanonicalResource | null {
   if (!row?.canonical_resource_hash || !row?.canonical_resource_type || !row?.canonical_resource_id) return null
   return {
@@ -244,16 +222,10 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     return json({ accepted: true, status: 'canonical_verified', receiptId: receipt.id, processing: 'no_payment_state_transition' })
   }
 
-  let periodStart = canonical.periodStart
-  let periodEnd = canonical.periodEnd
-  if (eventType === 'confirmed') {
-    periodStart = periodStart ?? canonical.occurredAt
-    periodEnd = periodEnd ?? (periodStart ? addBillingInterval(periodStart, String(checkout.billing_interval)) : null)
-    if (!canonical.providerPaymentId || !providerSubscriptionId || !periodStart || !periodEnd) {
-      await db.prepare(`UPDATE academy_payment_webhook_receipts SET detail_code='confirmed_waiting_subscription_evidence' WHERE id=?`)
-        .bind(receipt.id).run()
-      return json({ accepted: true, status: 'canonical_verified', receiptId: receipt.id, processing: 'waiting_subscription_evidence' })
-    }
+  if (eventType === 'confirmed' && (!canonical.providerPaymentId || !providerSubscriptionId)) {
+    await db.prepare(`UPDATE academy_payment_webhook_receipts SET detail_code='confirmed_waiting_subscription_evidence' WHERE id=?`)
+      .bind(receipt.id).run()
+    return json({ accepted: true, status: 'canonical_verified', receiptId: receipt.id, processing: 'waiting_subscription_evidence' })
   }
 
   const eventFingerprint = await sha256Hex([
@@ -268,13 +240,16 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
         providerEventId: `mp:${eventFingerprint.slice(0, 64)}`,
         providerPaymentId: canonical.providerPaymentId,
         providerSubscriptionId,
+        providerResourceType: canonical.resourceType,
+        providerResourceId: canonical.resourceId,
+        periodEvidenceObservedAt: receipt.canonical_fetched_at ?? new Date().toISOString(),
         eventType,
         amountCents: canonical.amountCents,
         currency: canonical.currency,
         payloadHash: canonical.payloadHash,
         verifiedAt: new Date().toISOString(),
-        periodStart,
-        periodEnd,
+        periodStart: canonical.periodStart,
+        periodEnd: canonical.periodEnd,
       },
     })
     await db.prepare(`UPDATE academy_payment_webhook_receipts SET status='processed',detail_code=?,last_error_code=NULL WHERE id=?`)
