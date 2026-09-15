@@ -97,8 +97,11 @@ BEGIN
     OR NEW.canonical_period_start IS NOT OLD.canonical_period_start
     OR NEW.canonical_period_end IS NOT OLD.canonical_period_end
     OR NEW.provider_payment_id IS NOT OLD.provider_payment_id
-    OR NEW.provider_subscription_id IS NOT OLD.provider_subscription_id
   ) THEN RAISE(ABORT,'canonical provider evidence is immutable once recorded') END;
+
+  SELECT CASE WHEN OLD.provider_subscription_id IS NOT NULL
+    AND NEW.provider_subscription_id IS NOT OLD.provider_subscription_id
+    THEN RAISE(ABORT,'provider subscription evidence is immutable once recorded') END;
 
   SELECT CASE WHEN NEW.canonical_resource_hash IS NOT NULL AND (
     length(NEW.canonical_resource_hash)!=64 OR NEW.canonical_resource_hash GLOB '*[^0-9a-f]*'
