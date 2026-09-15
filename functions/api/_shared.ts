@@ -24,6 +24,7 @@ export interface Env {
   ACADEMY_PAYMENT_PROVIDER?: string
   MERCADOPAGO_ACCESS_TOKEN?: string
   MERCADOPAGO_WEBHOOK_SECRET?: string
+  MERCADOPAGO_REQUEST_TIMEOUT_MS?: string
 }
 
 export function json(data: unknown, status = 200): Response {
