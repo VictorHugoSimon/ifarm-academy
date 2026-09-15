@@ -10,12 +10,33 @@
 }
 
 * { box-sizing: border-box; }
-html { min-width: 320px; background: #f7f9f8; }
+html { min-width: 320px; background: #f7f9f8; scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: #f7f9f8; }
 button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+  outline: 3px solid #16a36d;
+  outline-offset: 3px;
+}
 
 #root { min-height: 100vh; }
+
+.skipToContent {
+  position: fixed;
+  left: 16px;
+  top: 10px;
+  z-index: 9999;
+  transform: translateY(-180%);
+  border: 2px solid #fff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fff;
+  background: #003c2d;
+  font-weight: 800;
+  transition: transform .16s ease;
+}
+.skipToContent:focus { transform: translateY(0); }
+.routeLoading { min-height: 45vh; display: grid; place-items: center; padding: 40px 20px; color: var(--ifarm-green); }
 
 /* Mantém a linguagem visual do Layout Master aprovado sem introduzir
    biblioteca visual paralela. As telas funcionais v0.6-v0.8 continuam
@@ -80,6 +101,11 @@ button { cursor: pointer; }
   width: min(1440px, 100%);
   margin: 0 auto;
   padding: 24px 28px 40px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 
 @media (max-width: 760px) {

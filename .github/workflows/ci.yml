@@ -89,8 +89,32 @@ jobs:
       - name: Public paths and instructors fixtures
         run: python3 scripts/integration_public_discovery_contract.py
 
+      - name: Unified public search fixtures
+        run: python3 scripts/integration_public_search_contract.py
+
+      - name: Public partners and bundles fixtures
+        run: python3 scripts/integration_public_partners_bundles_contract.py
+
+      - name: Editorial recommendations fixtures
+        run: python3 scripts/integration_editorial_recommendations_contract.py
+
+      - name: Public SEO fixtures
+        run: python3 scripts/integration_public_seo_contract.py
+
+      - name: Performance and accessibility contract
+        run: python3 scripts/performance_accessibility_contract.py
+
       - name: Plans and subscriptions fixtures
         run: python3 scripts/integration_plans_contract.py
+
+      - name: Checkout, payment and entitlement fixtures
+        run: python3 scripts/integration_checkout_payment_contract.py
+
+      - name: Verified payment processor fixtures
+        run: python3 scripts/integration_payment_processor_contract.py
+
+      - name: Mercado Pago webhook receipt fixtures
+        run: python3 scripts/integration_mercadopago_webhook_contract.py
 
       - name: Commercial engine and consent fixtures
         run: python3 scripts/integration_commercial_engine_contract.py
@@ -103,6 +127,15 @@ jobs:
 
       - name: Commercial delivery worker fixtures
         run: python3 scripts/integration_commercial_worker_contract.py
+
+      - name: AI Tutor authorized content fixtures
+        run: python3 scripts/integration_tutor_contract.py
+
+      - name: AI Tutor provider boundary fixtures
+        run: python3 scripts/integration_tutor_provider_contract.py
+
+      - name: AI Tutor usage and guardrail fixtures
+        run: python3 scripts/integration_tutor_guardrails_contract.py
 
       - name: STAGE readiness smoke contract
         run: python3 scripts/stage_readiness_contract.py

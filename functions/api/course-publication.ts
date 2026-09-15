@@ -6,6 +6,7 @@ import {
   type CoursePublicationAction,
   type CourseStatus,
 } from './_coursePublication'
+import { purgeTutorIndex, rebuildTutorIndex } from './_tutorIndex'
 import { bodyJson, dbOr503, json, type Env } from './_shared'
 
 const editorRoles = ['academy_admin', 'academy_instructor', 'instructor', 'ifarm_admin']
@@ -118,6 +119,31 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
 
   await db.batch(statements)
 
+  let tutorSync: Record<string, unknown> = { status: 'not_authorized' }
+  if (nextStatus === 'published') {
+    const policy = await db.prepare(`
+      SELECT enabled FROM academy_tutor_course_policies
+      WHERE tenant_id=? AND course_id=? LIMIT 1
+    `).bind(auth.tenantId, courseId).first()
+
+    if (Number(policy?.enabled ?? 0) === 1) {
+      try {
+        const indexed = await rebuildTutorIndex(db, auth.tenantId, courseId)
+        tutorSync = { status: 'indexed', chunkCount: indexed.chunkCount, indexedAt: indexed.indexedAt }
+      } catch {
+        const removedChunks = await purgeTutorIndex(db, auth.tenantId, courseId)
+        tutorSync = {
+          status: 'failed_safe',
+          removedChunks,
+          message: 'Curso publicado, mas o índice do Tutor foi esvaziado porque a sincronização falhou.',
+        }
+      }
+    }
+  } else {
+    const removedChunks = await purgeTutorIndex(db, auth.tenantId, courseId)
+    tutorSync = { status: 'purged', removedChunks }
+  }
+
   return json({ data: {
     courseId,
     previousStatus: currentStatus,
@@ -125,5 +151,6 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     ready: readiness.ready,
     changedAt: now,
     changedBy: auth.userId,
+    tutorSync,
   }})
 }

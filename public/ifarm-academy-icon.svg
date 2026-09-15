@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">iFarm Academy</title>
+  <rect width="512" height="512" rx="112" fill="#00583f"/>
+  <path d="M133 330c0-94 58-158 174-173-4 114-65 178-174 173Z" fill="#fff"/>
+  <path d="M156 347c45-69 99-113 166-139" fill="none" stroke="#9fce63" stroke-width="30" stroke-linecap="round"/>
+  <path d="M255 293v82" fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round"/>
+  <path d="M203 375h104" fill="none" stroke="#fff" stroke-width="26" stroke-linecap="round"/>
+</svg>
