@@ -1,4 +1,4 @@
-export async function loadPublicPlans(db: any, tenantId: string, slug?: string | null) {
+export async function loadPublicPlans(db: any, tenantId: string, slug?: string | null, checkoutEnabled = false) {
   const planResult = await db.prepare(`SELECT * FROM academy_plans
     WHERE tenant_id=? AND status='public' AND (? IS NULL OR slug=?)
     ORDER BY featured DESC,name`).bind(tenantId, slug ?? null, slug ?? null).all()
@@ -42,26 +42,33 @@ export async function loadPublicPlans(db: any, tenantId: string, slug?: string |
   const paths = pathsResult.results as any[]
   const benefits = benefitsResult.results as any[]
 
-  return plans.map((row) => ({
-    id: row.id, slug: row.slug, name: row.name, description: row.description ?? '',
-    audienceType: row.audience_type, commercialMode: row.commercial_mode,
-    featured: Number(row.featured) === 1, maxUsers: row.max_users == null ? null : Number(row.max_users),
-    seoTitle: row.seo_title ?? null, seoDescription: row.seo_description ?? null,
-    prices: prices.filter((price) => price.plan_id === row.id).map((price) => ({
-      id: price.id, billingInterval: price.billing_interval, priceUnit: price.price_unit,
-      version: Number(price.version), amountCents: Number(price.amount_cents), currency: price.currency,
-      validFrom: price.valid_from ?? null, validUntil: price.valid_until ?? null,
-    })),
-    courses: courses.filter((item) => item.plan_id === row.id).map((item) => ({
-      id: item.course_id, slug: item.slug, title: item.title, category: item.category ?? null, coverRef: item.cover_ref ?? null,
-    })),
-    paths: paths.filter((item) => item.plan_id === row.id).map((item) => ({
-      id: item.path_id, slug: item.slug, title: item.title, shortDescription: item.short_description ?? null, coverRef: item.cover_ref ?? null,
-    })),
-    externalBenefits: benefits.filter((item) => item.plan_id === row.id).map((item) => ({
-      sourceSystem: item.source_system, label: item.label, description: item.description ?? '',
-    })),
-    checkoutReady: false,
-    subscriptionCreationReady: false,
-  }))
+  return plans.map((row) => {
+    const planPrices = prices.filter((price) => price.plan_id === row.id)
+    const eligibleCheckout = checkoutEnabled
+      && row.commercial_mode === 'priced'
+      && row.audience_type === 'individual'
+      && planPrices.some((price) => price.price_unit === 'subscription' && String(price.currency).toUpperCase() === 'BRL')
+    return {
+      id: row.id, slug: row.slug, name: row.name, description: row.description ?? '',
+      audienceType: row.audience_type, commercialMode: row.commercial_mode,
+      featured: Number(row.featured) === 1, maxUsers: row.max_users == null ? null : Number(row.max_users),
+      seoTitle: row.seo_title ?? null, seoDescription: row.seo_description ?? null,
+      prices: planPrices.map((price) => ({
+        id: price.id, billingInterval: price.billing_interval, priceUnit: price.price_unit,
+        version: Number(price.version), amountCents: Number(price.amount_cents), currency: price.currency,
+        validFrom: price.valid_from ?? null, validUntil: price.valid_until ?? null,
+      })),
+      courses: courses.filter((item) => item.plan_id === row.id).map((item) => ({
+        id: item.course_id, slug: item.slug, title: item.title, category: item.category ?? null, coverRef: item.cover_ref ?? null,
+      })),
+      paths: paths.filter((item) => item.plan_id === row.id).map((item) => ({
+        id: item.path_id, slug: item.slug, title: item.title, shortDescription: item.short_description ?? null, coverRef: item.cover_ref ?? null,
+      })),
+      externalBenefits: benefits.filter((item) => item.plan_id === row.id).map((item) => ({
+        sourceSystem: item.source_system, label: item.label, description: item.description ?? '',
+      })),
+      checkoutReady: eligibleCheckout,
+      subscriptionCreationReady: eligibleCheckout,
+    }
+  })
 }

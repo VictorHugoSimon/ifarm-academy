@@ -1,3 +1,4 @@
+import { paymentProviderReadiness } from '../../_payments'
 import { loadPublicPlans } from '../../_publicPlans'
 import { resolvePublicTenant } from '../../_publicTenant'
 import { dbOr503, json, type Env } from '../../_shared'
@@ -8,7 +9,8 @@ export const onRequestGet = async ({ env, request, params }: { env: Env; request
   if (!context) return json({ error: 'Portal público não configurado para este host' }, 404)
   const slug = String(params.slug ?? '').trim().toLowerCase()
   if (!slug) return json({ error: 'Plano não encontrado' }, 404)
-  const plans = await loadPublicPlans(db, context.tenantId, slug)
+  const readiness = paymentProviderReadiness(env)
+  const plans = await loadPublicPlans(db, context.tenantId, slug, readiness.checkoutEnabled)
   if (!plans.length) return json({ error: 'Plano não encontrado' }, 404)
   return json({ brand: context.brand, data: plans[0] })
 }
