@@ -25,9 +25,19 @@ ACADEMY_CORE_REQUEST_TIMEOUT_MS = "4000"
 ACADEMY_STORAGE_REQUIRED = "true"
 ACADEMY_RATE_LIMIT_ENABLED = "true"
 
+# Checkout Mercado Pago permanece desligado após o primeiro deploy.
+# Somente após homologação humana de STAGE e cadastro dos dois secrets abaixo,
+# promover ACADEMY_PAYMENT_CHECKOUT_ENABLED para "true".
+ACADEMY_PAYMENT_PROVIDER = "mercado_pago"
+ACADEMY_PAYMENT_CHECKOUT_ENABLED = "false"
+ACADEMY_PAYMENT_RETURN_URL = "https://academy-stage.ifarm.agr.br/app/payment-return"
+MERCADOPAGO_REQUEST_TIMEOUT_MS = "5000"
+
 # Secrets NÃO pertencem a este arquivo:
 # - ACADEMY_ADMIN_PROXY_SECRET (gerado pelo deploy)
 # - ACADEMY_COMMERCIAL_WORKER_SECRET (gerado pelo deploy)
+# - MERCADOPAGO_ACCESS_TOKEN (secret exclusivo do ambiente Academy)
+# - MERCADOPAGO_WEBHOOK_SECRET (secret exclusivo do ambiente Academy)
 # - CLOUDFLARE_API_TOKEN (GitHub Actions secret exclusivo da Academy)
 # - CLOUDFLARE_ACCOUNT_ID (GitHub Actions secret exclusivo da Academy)
 #
