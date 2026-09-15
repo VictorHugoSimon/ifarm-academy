@@ -36,6 +36,19 @@ export function normalizeCurrency(value: unknown): string | null {
   return /^[A-Z]{3}$/.test(currency) ? currency : null
 }
 
+export function normalizePaymentReturnUrl(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null
+  try {
+    const url = new URL(value.trim())
+    const local = ['localhost','127.0.0.1','::1'].includes(url.hostname)
+    if (url.protocol !== 'https:' && !(local && url.protocol === 'http:')) return null
+    if (url.username || url.password || url.hash) return null
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
 function optionalString(value: unknown, max = 180): string | null {
   if (typeof value !== 'string') return null
   const text = value.trim()
@@ -101,17 +114,24 @@ export function paymentProviderReadiness(env: Env): PaymentProviderReadiness {
   const access = Boolean(env.MERCADOPAGO_ACCESS_TOKEN?.trim())
   const webhook = Boolean(env.MERCADOPAGO_WEBHOOK_SECRET?.trim())
   const canonical = access && webhook
+  const explicitCheckout = env.ACADEMY_PAYMENT_CHECKOUT_ENABLED?.trim().toLowerCase() === 'true'
+  const returnUrl = Boolean(normalizePaymentReturnUrl(env.ACADEMY_PAYMENT_RETURN_URL))
+  const checkoutEnabled = canonical && explicitCheckout && returnUrl
   return {
     provider: 'mercado_pago',
     credentialsPresent: canonical,
-    checkoutEnabled: false,
+    checkoutEnabled,
     webhookVerificationEnabled: webhook,
     canonicalResourceFetchEnabled: canonical,
-    reason: canonical
-      ? 'Webhook HMAC e consulta canônica server-side estão habilitados. Criação externa de checkout/assinatura continua desabilitada até homologação própria.'
-      : webhook
-        ? 'Webhook HMAC está habilitado, mas a consulta canônica exige MERCADOPAGO_ACCESS_TOKEN.'
-        : 'Mercado Pago ainda não possui chave de Webhook configurada no ambiente.',
+    reason: checkoutEnabled
+      ? 'Mercado Pago está configurado para criar assinatura pendente; acesso só é ativado após webhook HMAC e verificação canônica.'
+      : canonical && explicitCheckout && !returnUrl
+        ? 'Criação de checkout foi habilitada, mas ACADEMY_PAYMENT_RETURN_URL não é válida.'
+        : canonical && !explicitCheckout
+          ? 'Webhook e consulta canônica estão prontos; criação externa permanece bloqueada pela feature flag ACADEMY_PAYMENT_CHECKOUT_ENABLED.'
+          : webhook
+            ? 'Webhook HMAC está habilitado, mas checkout/verificação canônica exigem MERCADOPAGO_ACCESS_TOKEN.'
+            : 'Mercado Pago ainda não possui chave de Webhook configurada no ambiente.',
   }
 }
 
