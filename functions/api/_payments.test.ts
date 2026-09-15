@@ -35,12 +35,14 @@ describe('payment boundary', () => {
     })).toMatchObject({ eventType: 'pending' })
   })
 
-  it('enables only HMAC ingress when the webhook secret exists', () => {
+  it('enables HMAC and canonical fetch only when their server-side credentials exist', () => {
     expect(paymentProviderReadiness({})).toMatchObject({ credentialsPresent: false, checkoutEnabled: false, provider: 'not_configured' })
     expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_ACCESS_TOKEN: 'secret' }))
       .toMatchObject({ credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: false, canonicalResourceFetchEnabled: false })
+    expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_WEBHOOK_SECRET: 'webhook' }))
+      .toMatchObject({ credentialsPresent: false, checkoutEnabled: false, webhookVerificationEnabled: true, canonicalResourceFetchEnabled: false })
     expect(paymentProviderReadiness({ ACADEMY_PAYMENT_PROVIDER: 'mercado_pago', MERCADOPAGO_ACCESS_TOKEN: 'secret', MERCADOPAGO_WEBHOOK_SECRET: 'webhook' }))
-      .toMatchObject({ credentialsPresent: true, checkoutEnabled: false, webhookVerificationEnabled: true, canonicalResourceFetchEnabled: false })
+      .toMatchObject({ credentialsPresent: true, checkoutEnabled: false, webhookVerificationEnabled: true, canonicalResourceFetchEnabled: true })
   })
 
   it('never activates a paid entitlement from payment state alone', () => {
