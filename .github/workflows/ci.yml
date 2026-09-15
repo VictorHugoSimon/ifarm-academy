@@ -110,6 +110,9 @@ jobs:
       - name: Checkout, payment and entitlement fixtures
         run: python3 scripts/integration_checkout_payment_contract.py
 
+      - name: Mercado Pago checkout creation fixtures
+        run: python3 scripts/integration_checkout_provider_contract.py
+
       - name: Verified payment processor fixtures
         run: python3 scripts/integration_payment_processor_contract.py
 
