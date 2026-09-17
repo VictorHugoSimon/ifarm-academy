@@ -1,3 +1,4 @@
+import { deriveVerifiedBillingPeriod } from './_billingPeriod'
 import { nextPaymentStatus, normalizeVerifiedPaymentEvent, type PaymentStatus } from './_payments'
 
 export interface PaymentProcessingResult {
@@ -58,6 +59,16 @@ export async function processVerifiedPaymentEvent(
     .bind(input.tenantId, input.checkoutSessionId).first()
   if (!state) throw new Error('PAYMENT_STATE_NOT_FOUND')
   const next = nextPaymentStatus(asStatus(state.status), event.eventType)
+  const billingPeriod = next === 'confirmed'
+    ? deriveVerifiedBillingPeriod({
+        billingInterval: checkout.billing_interval,
+        providerPeriodStart: event.periodStart ?? null,
+        providerPeriodEnd: event.periodEnd ?? null,
+        providerOccurredAt: event.providerOccurredAt ?? null,
+      })
+    : null
+  if (next === 'confirmed' && !billingPeriod) throw new Error('BILLING_PERIOD_EVIDENCE_INVALID')
+
   const eventId = crypto.randomUUID()
   const logId = crypto.randomUUID()
   const now = new Date().toISOString()
@@ -65,11 +76,11 @@ export async function processVerifiedPaymentEvent(
   const statements: any[] = [
     db.prepare(`INSERT INTO academy_payment_events
       (id,tenant_id,checkout_session_id,provider,provider_event_id,event_type,provider_payment_id,provider_subscription_id,
-       amount_cents,currency,payload_hash,verified_at,received_at,period_start,period_end,processing_status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'received')`).bind(
+       amount_cents,currency,payload_hash,verified_at,received_at,provider_occurred_at,period_start,period_end,processing_status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'received')`).bind(
       eventId, input.tenantId, input.checkoutSessionId, event.provider, event.providerEventId, event.eventType,
       event.providerPaymentId ?? null, event.providerSubscriptionId ?? null, event.amountCents, event.currency,
-      event.payloadHash, event.verifiedAt, now, event.periodStart ?? null, event.periodEnd ?? null,
+      event.payloadHash, event.verifiedAt, now, event.providerOccurredAt ?? null, event.periodStart ?? null, event.periodEnd ?? null,
     ),
     db.prepare(`UPDATE academy_payment_state SET status=?,provider=?,provider_payment_id=?,last_event_id=?,
       confirmed_at=CASE WHEN ?='confirmed' THEN ? ELSE confirmed_at END,updated_at=?
@@ -80,14 +91,29 @@ export async function processVerifiedPaymentEvent(
   ]
 
   let accessAction: PaymentProcessingResult['accessAction'] = 'unchanged'
-  if (next === 'confirmed') {
+  if (next === 'confirmed' && billingPeriod) {
+    const periodEvidenceId = crypto.randomUUID()
     statements.push(
+      db.prepare(`INSERT INTO academy_subscription_billing_periods
+        (id,tenant_id,subscription_id,checkout_session_id,payment_event_id,provider,provider_event_id,
+         provider_payment_id,provider_subscription_id,billing_interval,period_start,period_end,period_start_source,
+         period_end_source,provider_reported_period_start,provider_reported_period_end,provider_period_end_matches,
+         derivation_version,derived_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'academy_derived_from_checkout_interval',?,?,?,?,?)`).bind(
+        periodEvidenceId, input.tenantId, checkout.subscription_id, input.checkoutSessionId, eventId,
+        event.provider, event.providerEventId, String(event.providerPaymentId), String(event.providerSubscriptionId),
+        billingPeriod.billingInterval, billingPeriod.periodStart, billingPeriod.periodEnd, billingPeriod.startSource,
+        billingPeriod.providerReportedPeriodStart, billingPeriod.providerReportedPeriodEnd,
+        billingPeriod.providerPeriodEndMatches == null ? null : billingPeriod.providerPeriodEndMatches ? 1 : 0,
+        1, now,
+      ),
       db.prepare(`UPDATE academy_checkout_sessions SET status='confirmed',provider=?,provider_checkout_id=COALESCE(provider_checkout_id,?),updated_at=?
         WHERE tenant_id=? AND id=?`).bind(event.provider, event.providerPaymentId ?? null, now, input.tenantId, input.checkoutSessionId),
       db.prepare(`UPDATE academy_subscriptions SET status='active',provider=?,provider_subscription_id=?,activation_reference=?,
         started_at=COALESCE(started_at,?),current_period_start=?,current_period_end=?,updated_at=?
         WHERE tenant_id=? AND id=? AND status IN ('pending_payment','past_due')`).bind(
-        event.provider, event.providerSubscriptionId, activationReference, event.periodStart, event.periodStart, event.periodEnd,
+        event.provider, event.providerSubscriptionId, activationReference,
+        billingPeriod.periodStart, billingPeriod.periodStart, billingPeriod.periodEnd,
         now, input.tenantId, checkout.subscription_id,
       ),
       db.prepare(`INSERT INTO academy_entitlements
@@ -97,7 +123,7 @@ export async function processVerifiedPaymentEvent(
           status='active',activation_evidence_type='verified_provider_event',activation_reference=excluded.activation_reference,
           starts_at=excluded.starts_at,ends_at=excluded.ends_at,updated_at=excluded.updated_at`).bind(
         crypto.randomUUID(), input.tenantId, checkout.user_id, checkout.subscription_id, checkout.plan_id,
-        activationReference, event.periodStart, event.periodEnd, now, now,
+        activationReference, billingPeriod.periodStart, billingPeriod.periodEnd, now, now,
       ),
     )
     accessAction = 'activated'
