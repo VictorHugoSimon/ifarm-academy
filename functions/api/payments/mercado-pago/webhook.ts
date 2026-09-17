@@ -9,6 +9,7 @@ import {
   type MercadoPagoCanonicalResource,
 } from '../../_mercadoPagoProvider'
 import { processVerifiedPaymentEvent } from '../../_paymentProcessor'
+import { recordSubscriptionLifecycleEvidence } from '../../_subscriptionLifecycleRecorder'
 import { dbOr503, json, type Env } from '../../_shared'
 
 const MAX_BODY_CHARS = 128_000
@@ -196,9 +197,38 @@ export const onRequestPost = async ({ env, request }: { env: Env; request: Reque
     await db.prepare(`UPDATE academy_checkout_sessions SET provider='mercado_pago',provider_checkout_id=COALESCE(provider_checkout_id,?),
       status=CASE WHEN status='created' THEN 'awaiting_provider' ELSE status END,updated_at=? WHERE id=?`)
       .bind(canonical.resourceId, new Date().toISOString(), checkout.id).run()
-    await db.prepare(`UPDATE academy_payment_webhook_receipts SET tenant_id=?,checkout_session_id=?,detail_code='canonical_preapproval_verified'
-      WHERE id=?`).bind(checkout.tenant_id, checkout.id, receipt.id).run()
-    return json({ accepted: true, status: 'canonical_verified', receiptId: receipt.id, processing: 'subscription_resource_correlated' })
+    await db.prepare(`UPDATE academy_payment_webhook_receipts SET tenant_id=?,checkout_session_id=?,provider_subscription_id=COALESCE(provider_subscription_id,?),
+      detail_code='canonical_preapproval_verified' WHERE id=?`).bind(checkout.tenant_id, checkout.id, canonical.resourceId, receipt.id).run()
+
+    if (!canonical.canonicalStatus) {
+      return json({ accepted: true, status: 'canonical_verified', receiptId: receipt.id, processing: 'subscription_lifecycle_status_missing' })
+    }
+    try {
+      const lifecycle = await recordSubscriptionLifecycleEvidence(db, {
+        tenantId: String(checkout.tenant_id),
+        subscriptionId: String(checkout.subscription_id),
+        checkoutSessionId: String(checkout.id),
+        webhookReceiptId: String(receipt.id),
+        provider: 'mercado_pago',
+        providerResourceType: canonical.resourceType,
+        providerResourceId: canonical.resourceId,
+        providerStatus: canonical.canonicalStatus,
+        payloadHash: canonical.payloadHash,
+        occurredAt: canonical.occurredAt,
+      })
+      await db.prepare(`UPDATE academy_payment_webhook_receipts SET status='processed',detail_code='subscription_lifecycle_observed',last_error_code=NULL WHERE id=?`)
+        .bind(receipt.id).run()
+      return json({
+        accepted: true,
+        status: 'processed',
+        receiptId: receipt.id,
+        processing: 'subscription_lifecycle_observed',
+        lifecycle,
+      })
+    } catch {
+      await markReceiptFailure(db, String(receipt.id), 'subscription_lifecycle_evidence_rejected')
+      return json({ accepted: true, status: 'failed', receiptId: receipt.id, detailCode: 'subscription_lifecycle_evidence_rejected' })
+    }
   }
 
   if (canonical.resourceType === 'authorized_payment' && providerSubscriptionId) {
