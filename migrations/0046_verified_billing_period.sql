@@ -102,3 +102,55 @@ BEFORE DELETE ON academy_subscription_billing_periods
 BEGIN
   SELECT RAISE(ABORT,'derived billing period evidence cannot be deleted');
 END;
+
+CREATE TRIGGER IF NOT EXISTS trg_priced_subscription_requires_derived_period_insert
+BEFORE INSERT ON academy_subscriptions
+WHEN NEW.status='active' AND EXISTS (
+  SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode='priced'
+)
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_subscription_billing_periods bp
+    WHERE bp.tenant_id=NEW.tenant_id AND bp.subscription_id=NEW.id
+      AND julianday(bp.period_start)=julianday(NEW.current_period_start)
+      AND julianday(bp.period_end)=julianday(NEW.current_period_end)
+  ) THEN RAISE(ABORT,'active priced subscription requires derived billing period evidence') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_priced_subscription_requires_derived_period_update
+BEFORE UPDATE ON academy_subscriptions
+WHEN NEW.status='active' AND EXISTS (
+  SELECT 1 FROM academy_plans p WHERE p.id=NEW.plan_id AND p.tenant_id=NEW.tenant_id AND p.commercial_mode='priced'
+)
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_subscription_billing_periods bp
+    WHERE bp.tenant_id=NEW.tenant_id AND bp.subscription_id=NEW.id
+      AND julianday(bp.period_start)=julianday(NEW.current_period_start)
+      AND julianday(bp.period_end)=julianday(NEW.current_period_end)
+  ) THEN RAISE(ABORT,'active priced subscription requires derived billing period evidence') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_subscription_entitlement_period_insert
+BEFORE INSERT ON academy_entitlements
+WHEN NEW.source_type='subscription' AND NEW.status='active'
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_subscriptions s
+    WHERE s.id=NEW.source_id AND s.tenant_id=NEW.tenant_id AND s.status='active'
+      AND julianday(s.current_period_start)=julianday(NEW.starts_at)
+      AND julianday(s.current_period_end)=julianday(NEW.ends_at)
+  ) THEN RAISE(ABORT,'active subscription entitlement period must match subscription') END;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_subscription_entitlement_period_update
+BEFORE UPDATE ON academy_entitlements
+WHEN NEW.source_type='subscription' AND NEW.status='active'
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM academy_subscriptions s
+    WHERE s.id=NEW.source_id AND s.tenant_id=NEW.tenant_id AND s.status='active'
+      AND julianday(s.current_period_start)=julianday(NEW.starts_at)
+      AND julianday(s.current_period_end)=julianday(NEW.ends_at)
+  ) THEN RAISE(ABORT,'active subscription entitlement period must match subscription') END;
+END;
