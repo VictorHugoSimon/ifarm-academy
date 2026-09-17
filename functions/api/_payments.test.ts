@@ -14,18 +14,36 @@ describe('payment boundary', () => {
     expect(() => nextPaymentStatus('refunded', 'confirmed')).toThrow(/invalid payment transition/)
   })
 
-  it('normalizes confirmed events only with payment/subscription and period evidence', () => {
+  it('normalizes confirmed events with canonical payment/subscription and timing evidence without requiring provider period end', () => {
     const base = {
       provider: 'Mercado_Pago', providerEventId: 'evt-123', providerPaymentId: 'pay-456', providerSubscriptionId: 'sub-789',
       eventType: 'confirmed', amountCents: 5990, currency: 'brl', payloadHash: 'a'.repeat(64),
-      verifiedAt: '2026-09-14T18:00:00.000Z', periodStart: '2026-09-14T18:00:00.000Z', periodEnd: '2026-10-14T18:00:00.000Z',
+      verifiedAt: '2026-09-14T18:00:00.000Z', providerOccurredAt: '2026-09-14T17:59:30.000Z',
     }
     const valid = normalizeVerifiedPaymentEvent(base)
-    expect(valid).toMatchObject({ provider: 'mercado_pago', eventType: 'confirmed', amountCents: 5990, currency: 'BRL', providerSubscriptionId: 'sub-789' })
+    expect(valid).toMatchObject({
+      provider: 'mercado_pago', eventType: 'confirmed', amountCents: 5990, currency: 'BRL',
+      providerSubscriptionId: 'sub-789', providerOccurredAt: '2026-09-14T17:59:30.000Z', periodEnd: null,
+    })
     expect(normalizeVerifiedPaymentEvent({ ...base, providerSubscriptionId: null })).toBeNull()
-    expect(normalizeVerifiedPaymentEvent({ ...base, periodEnd: '2026-08-14T18:00:00.000Z' })).toBeNull()
+    expect(normalizeVerifiedPaymentEvent({ ...base, providerOccurredAt: null })).toBeNull()
     expect(normalizeVerifiedPaymentEvent({ ...base, payloadHash: 'not-a-hash' })).toBeNull()
     expect(normalizeVerifiedPaymentEvent({ ...base, amountCents: 0 })).toBeNull()
+  })
+
+  it('preserves provider period evidence when the provider explicitly reports it', () => {
+    const valid = normalizeVerifiedPaymentEvent({
+      provider: 'mercado_pago', providerEventId: 'evt-period', providerPaymentId: 'pay-period', providerSubscriptionId: 'sub-period',
+      eventType: 'confirmed', amountCents: 5990, currency: 'BRL', payloadHash: 'c'.repeat(64),
+      verifiedAt: '2026-09-14T18:00:00.000Z',
+      periodStart: '2026-09-14T18:00:00.000Z', periodEnd: '2026-10-14T18:00:00.000Z',
+    })
+    expect(valid).toMatchObject({ periodStart: '2026-09-14T18:00:00.000Z', periodEnd: '2026-10-14T18:00:00.000Z' })
+    expect(normalizeVerifiedPaymentEvent({
+      provider: 'mercado_pago', providerEventId: 'evt-bad-period', providerPaymentId: 'pay-period', providerSubscriptionId: 'sub-period',
+      eventType: 'confirmed', amountCents: 5990, currency: 'BRL', payloadHash: 'd'.repeat(64),
+      verifiedAt: '2026-09-14T18:00:00.000Z', periodEnd: '2026-10-14T18:00:00.000Z',
+    })).toBeNull()
   })
 
   it('accepts non-confirmation events without subscription period evidence', () => {
