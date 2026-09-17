@@ -81,6 +81,12 @@ try:
 except sqlite3.IntegrityError:
     pass
 
+conn.execute('''INSERT INTO academy_subscription_billing_periods
+  (id,tenant_id,subscription_id,checkout_session_id,payment_event_id,provider,provider_event_id,provider_payment_id,
+   provider_subscription_id,billing_interval,period_start,period_end,period_start_source,period_end_source,
+   provider_reported_period_start,provider_reported_period_end,provider_period_end_matches,derivation_version,derived_at)
+  VALUES ('BP1','T1','SUB1','CHK1','EVT1','mercado_pago','evt-1','pay-1','sub-1','monthly',?,?,'provider_period_start',
+          'academy_derived_from_checkout_interval',?,?,1,1,?)''',(now,period_end,now,period_end,now))
 conn.execute('''UPDATE academy_subscriptions SET status='active',provider='mercado_pago',provider_subscription_id='sub-1',
   activation_reference='provider-event:evt-1',started_at=?,current_period_start=?,current_period_end=?,updated_at=?
   WHERE id='SUB1' ''',(now,now,period_end,now))
@@ -92,6 +98,8 @@ state = conn.execute("SELECT status,last_event_id FROM academy_payment_state WHE
 assert state == ('confirmed','EVT1')
 entitlement = conn.execute("SELECT status,activation_reference FROM academy_entitlements WHERE id='ENT1'").fetchone()
 assert entitlement == ('active','evt-1')
+period = conn.execute("SELECT period_end_source FROM academy_subscription_billing_periods WHERE id='BP1'").fetchone()
+assert period == ('academy_derived_from_checkout_interval',)
 
 conn.close()
 print('Checkout, payment and entitlement integration fixture: PASS')
