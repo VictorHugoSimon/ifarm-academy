@@ -23,19 +23,25 @@ conn.execute('''INSERT INTO academy_checkout_sessions
   VALUES ('CHK','T1','U1','PLAN','PRICE','SUB','monthly','subscription',1,5990,'BRL','pending',?,?)''',(now,now))
 conn.execute("INSERT INTO academy_payment_state (checkout_session_id,tenant_id,status,amount_cents,currency,updated_at) VALUES ('CHK','T1','pending',5990,'BRL',?)",(now,))
 
-# Confirmation without provider subscription/period evidence is rejected at the database boundary.
+# Confirmation without provider subscription/canonical timing evidence is rejected at the database boundary.
 try:
     conn.execute('''INSERT INTO academy_payment_events
       (id,tenant_id,checkout_session_id,provider,provider_event_id,event_type,provider_payment_id,amount_cents,currency,payload_hash,verified_at,received_at)
       VALUES ('BAD','T1','CHK','mercado_pago','evt-bad','confirmed','pay-bad',5990,'BRL',?,?,?)''',('a'*64,now,now))
-    raise AssertionError('confirmed event without subscription period evidence was accepted')
+    raise AssertionError('confirmed event without subscription/timing evidence was accepted')
 except sqlite3.IntegrityError:
     pass
 
-# Simulate the verified-event processor applying a confirmation.
+# Simulate the verified-event processor: provider supplies payment/subscription + occurrence only.
 conn.execute('''INSERT INTO academy_payment_events
-  (id,tenant_id,checkout_session_id,provider,provider_event_id,event_type,provider_payment_id,provider_subscription_id,amount_cents,currency,payload_hash,verified_at,received_at,period_start,period_end,processing_status)
-  VALUES ('EVT1','T1','CHK','mercado_pago','evt-1','confirmed','pay-1','sub-1',5990,'BRL',?,?,?,?,?,'received')''',('b'*64,now,now,now,period_end))
+  (id,tenant_id,checkout_session_id,provider,provider_event_id,event_type,provider_payment_id,provider_subscription_id,amount_cents,currency,payload_hash,verified_at,received_at,provider_occurred_at,processing_status)
+  VALUES ('EVT1','T1','CHK','mercado_pago','evt-1','confirmed','pay-1','sub-1',5990,'BRL',?,?,?,?, 'received')''',('b'*64,now,now,now))
+conn.execute('''INSERT INTO academy_subscription_billing_periods
+  (id,tenant_id,subscription_id,checkout_session_id,payment_event_id,provider,provider_event_id,provider_payment_id,
+   provider_subscription_id,billing_interval,period_start,period_end,period_start_source,period_end_source,
+   provider_period_end_matches,derivation_version,derived_at)
+  VALUES ('BP1','T1','SUB','CHK','EVT1','mercado_pago','evt-1','pay-1','sub-1','monthly',?,?,'provider_occurred_at',
+          'academy_derived_from_checkout_interval',NULL,1,?)''',(now,period_end,now))
 conn.execute("UPDATE academy_payment_state SET status='confirmed',provider='mercado_pago',provider_payment_id='pay-1',last_event_id='EVT1',confirmed_at=?,updated_at=? WHERE checkout_session_id='CHK'",(now,now))
 conn.execute("UPDATE academy_checkout_sessions SET status='confirmed',provider='mercado_pago',updated_at=? WHERE id='CHK'",(now,))
 conn.execute('''UPDATE academy_subscriptions SET status='active',provider='mercado_pago',provider_subscription_id='sub-1',
@@ -64,6 +70,7 @@ conn.execute("INSERT INTO academy_payment_processing_log (id,tenant_id,checkout_
 assert conn.execute("SELECT status FROM academy_payment_state WHERE checkout_session_id='CHK'").fetchone() == ('refunded',)
 assert conn.execute("SELECT status FROM academy_subscriptions WHERE id='SUB'").fetchone() == ('active',)
 assert conn.execute("SELECT status FROM academy_entitlements WHERE id='ENT'").fetchone() == ('active',)
+assert conn.execute("SELECT period_end_source FROM academy_subscription_billing_periods WHERE subscription_id='SUB'").fetchone() == ('academy_derived_from_checkout_interval',)
 assert conn.execute("SELECT COUNT(*) FROM academy_payment_processing_log WHERE checkout_session_id='CHK'").fetchone() == (2,)
 
 conn.close()

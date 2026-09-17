@@ -75,6 +75,7 @@ describe('Mercado Pago canonical resource adapter', () => {
       currency: 'BRL',
       providerPaymentId: '123456789',
       eventType: 'confirmed',
+      occurredAt: '2026-09-15T12:00:00.000Z',
     })
     expect(JSON.stringify(result.resource)).not.toContain('never-persist@example.test')
     expect(result.resource.payloadHash).toMatch(/^[a-f0-9]{64}$/)
@@ -105,6 +106,7 @@ describe('Mercado Pago canonical resource adapter', () => {
       providerPaymentId: '19951521071',
       providerSubscriptionId: '2c938084726fca480172750000000000',
       eventType: 'confirmed',
+      periodStart: '2026-09-15T12:00:00.000Z',
     })
   })
 

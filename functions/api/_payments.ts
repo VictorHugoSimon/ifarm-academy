@@ -13,6 +13,7 @@ export interface VerifiedPaymentEventInput {
   currency: string
   payloadHash: string
   verifiedAt: string
+  providerOccurredAt?: string | null
   periodStart?: string | null
   periodEnd?: string | null
 }
@@ -69,6 +70,7 @@ export function normalizeVerifiedPaymentEvent(input: Record<string, unknown>): V
   const currency = normalizeCurrency(input.currency)
   const payloadHash = typeof input.payloadHash === 'string' ? input.payloadHash.trim().toLowerCase() : ''
   const verifiedAt = typeof input.verifiedAt === 'string' ? input.verifiedAt.trim() : ''
+  const providerOccurredAt = optionalString(input.providerOccurredAt)
   const periodStart = optionalString(input.periodStart)
   const periodEnd = optionalString(input.periodEnd)
 
@@ -77,16 +79,20 @@ export function normalizeVerifiedPaymentEvent(input: Record<string, unknown>): V
   if (!Number.isInteger(amountCents) || amountCents <= 0 || !currency) return null
   if (!/^[a-f0-9]{64}$/.test(payloadHash)) return null
   if (!verifiedAt || Number.isNaN(Date.parse(verifiedAt))) return null
-  if (eventType === 'confirmed') {
-    if (!providerPaymentId || !providerSubscriptionId || !validIso(periodStart) || !validIso(periodEnd)) return null
-    if (Date.parse(periodEnd!) <= Date.parse(periodStart!)) return null
-  }
+  if (providerOccurredAt && !validIso(providerOccurredAt)) return null
   if ((periodStart && !validIso(periodStart)) || (periodEnd && !validIso(periodEnd))) return null
+  if (periodEnd && !periodStart) return null
+  if (periodStart && periodEnd && Date.parse(periodEnd) <= Date.parse(periodStart)) return null
+
+  if (eventType === 'confirmed') {
+    if (!providerPaymentId || !providerSubscriptionId) return null
+    if (!validIso(periodStart) && !validIso(providerOccurredAt)) return null
+  }
 
   return {
     provider, providerEventId, providerPaymentId, providerSubscriptionId,
     eventType: eventType as VerifiedPaymentEventType,
-    amountCents, currency, payloadHash, verifiedAt, periodStart, periodEnd,
+    amountCents, currency, payloadHash, verifiedAt, providerOccurredAt, periodStart, periodEnd,
   }
 }
 

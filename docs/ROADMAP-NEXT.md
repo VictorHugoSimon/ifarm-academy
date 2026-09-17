@@ -1,6 +1,6 @@
 # Próximas camadas — iFarm Academy
 
-## Concluído até v0.72
+## Concluído até v0.73
 - Núcleo LMS: Course Builder, módulos, aulas, conteúdos, quiz, publicação, matrícula, Student Player, progresso, ciclos acadêmicos, conclusão e certificados.
 - Correção automática/manual auditável e políticas de avaliação versionadas.
 - Certificado imutável com QR, validação pública, marca snapshot e política de validade versionada.
@@ -17,31 +17,33 @@
 - Gamificação foundation e Notification Center in-app.
 - Pipeline Cloudflare STAGE/PRODUCTION com isolamento de recursos e contratos de smoke/deploy.
 - AI Tutor grounded com conteúdo autorizado, provider boundary, quotas/guardrails, Learning Tools e Learning Signals sem efeito em nota/certificação.
-- Pagamentos v0.68–v0.72:
+- Pagamentos v0.68–v0.73:
   - checkout local com preço server-side imutável;
   - subscription começa `pending_payment`;
   - ledger provider idempotente/imutável e estado financeiro projetado;
   - entitlement exige evidência explícita;
-  - processor interno ativa subscription/entitlement somente com evento confirmado contendo payment id, subscription id e período verificados;
-  - Webhook Mercado Pago valida HMAC;
-  - recurso canônico do Mercado Pago é consultado server-side antes da transição financeira;
+  - Webhook Mercado Pago valida HMAC e consulta recurso canônico server-side antes da transição financeira;
   - criação de preapproval `pending` usa snapshot local, e-mail validado pelo iFarm Core, `external_reference=checkoutId` e idempotência estável;
   - URL de checkout só é devolvida após correlação da resposta do provider;
   - criação externa é protegida por feature flag e fica desligada por padrão em STAGE;
   - nenhum retorno de criação ativa entitlement;
+  - confirmação guarda `provider_occurred_at`/período reportado como evidência do provider;
+  - fim do período da assinatura é derivado pela Academy da evidência temporal canônica + `checkout.billing_interval` imutável;
+  - proveniência da derivação é append-only em `academy_subscription_billing_periods`;
+  - assinatura paga/entitlement não podem ser ativados com período sem essa evidência derivada;
+  - fim de mês e ano bissexto têm cálculo UTC determinístico;
   - refund registra estado financeiro, mas não revoga acesso sem política aprovada.
-- 45 migrations versionadas após v0.72, com fixtures D1-compatible por módulo.
+- 46 migrations versionadas após v0.73, com fixtures D1-compatible por módulo.
 
 ## Próximas prioridades técnicas
-1. **Período de renovação verificado:** derivar fim de período usando pagamento canônico + intervalo comercial imutável, registrando a proveniência da evidência; nunca fingir que `period_end` veio do provider.
-2. **Homologação Mercado Pago STAGE:** cadastrar Access Token/Webhook Secret exclusivos, validar URL de retorno e só então ativar `ACADEMY_PAYMENT_CHECKOUT_ENABLED=true`.
-3. **Renewal/past_due/cancelamento:** mapear os recursos canônicos recorrentes para os estados locais após política comercial aprovada.
-4. **Checkout por usuário/licença:** definir quantidade, proration, assentos e limites antes de habilitar `price_unit=per_user`.
-5. **Streaming:** escolher/homologar provider e conectar o adapter existente com credenciais exclusivas por ambiente.
-6. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
-7. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core.
-8. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
-9. **Release Candidate:** executar preflight automático, matriz STAGE, corrigir findings e somente depois promover `main`/produção.
+1. **Homologação Mercado Pago STAGE:** cadastrar Access Token/Webhook Secret exclusivos, validar URL de retorno e só então ativar `ACADEMY_PAYMENT_CHECKOUT_ENABLED=true`.
+2. **Renewal/past_due/cancelamento:** mapear os recursos canônicos recorrentes para os estados locais após política comercial aprovada.
+3. **Checkout por usuário/licença:** definir quantidade, proration, assentos e limites antes de habilitar `price_unit=per_user`.
+4. **Streaming:** escolher/homologar provider e conectar o adapter existente com credenciais exclusivas por ambiente.
+5. **Marketplace financeiro:** split, repasses, extrato e conciliação após definição de comissão/fiscal.
+6. **Barramento oficial de notificações Core:** integrar quando o serviço/outbox real existir no Core.
+7. **SLO/backup/restore real:** ativar sobre STAGE/PRODUCTION provisionados e medir RPO/RTO aprovados.
+8. **Release Candidate:** executar preflight automático, matriz STAGE, corrigir findings e somente depois promover `main`/produção.
 
 ## Governança
 - `develop` continua linha de integração; promoção para `stage`/`main` exige homologação e gates próprios.
@@ -56,7 +58,8 @@
 - Checkout nunca confia em preço, moeda, payer email ou status de pagamento enviados pelo browser.
 - Criação no provider é idempotente e permanece separada da ativação de acesso.
 - `payment_state=confirmed` exige evento provider-verificado; evento é idempotente e evidência imutável.
-- Entitlement ativo exige evidência explícita e subscription ativa; credencial de gateway, por si só, não habilita checkout.
+- `current_period_end` de assinatura paga é derivado localmente da evidência canônica + cadência comercial imutável e nunca é apresentado como se fosse retornado pelo gateway quando não foi.
+- Entitlement ativo exige evidência explícita, subscription ativa e período coerente com a evidência derivada.
 - Refund não revoga acesso automaticamente enquanto a política estiver TBD.
 - Plano `per_user` permanece sem checkout até definição/homologação de quantidade/licenças.
 - Logs não devem registrar PII, secrets, respostas de prova ou corpos sensíveis.
