@@ -115,6 +115,9 @@ function normalizedResource(
 
   if (type === 'payment') {
     const status = text(payload.status, 80)?.toLowerCase() ?? null
+    const approvedAt = iso(payload.date_approved)
+    const lastUpdatedAt = iso(payload.date_last_updated)
+    const createdAt = iso(payload.date_created)
     return {
       notificationType: type,
       resourceType: 'payment',
@@ -125,7 +128,7 @@ function normalizedResource(
       currency: currency(payload.currency_id),
       providerPaymentId: id,
       providerSubscriptionId: null,
-      occurredAt: iso(payload.date_last_updated) ?? iso(payload.date_approved) ?? iso(payload.date_created),
+      occurredAt: status === 'approved' ? approvedAt ?? lastUpdatedAt ?? createdAt : lastUpdatedAt ?? approvedAt ?? createdAt,
       periodStart: null,
       periodEnd: null,
       eventType: mapMercadoPagoPaymentStatus(status),
@@ -244,7 +247,7 @@ export async function fetchMercadoPagoCanonicalResource(
   const normalized = normalizedResource(notificationType as MercadoPagoCanonicalType, payload, payloadHash)
   if (!normalized) return { ok: false, code: 'provider_invalid_response', retryable: false, httpStatus: response.status }
   if (normalized.resourceId.toLowerCase() !== resourceId.toLowerCase()) {
-    return { ok: false, code: 'provider_resource_mismatch', retryable: false, httpStatus: response.status }
+    return { ok: false, code: 'provider_resource_mismatch', retryable: false }
   }
   return { ok: true, resource: { ...normalized, payloadHash } }
 }
