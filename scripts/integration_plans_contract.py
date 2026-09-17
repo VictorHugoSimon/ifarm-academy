@@ -95,7 +95,7 @@ except sqlite3.IntegrityError:
     pass
 conn.execute("UPDATE academy_course_public_profiles SET visibility='public' WHERE course_id='C2'")
 
-# Paid subscription activation requires a real provider confirmation; pending payment does not.
+# Paid subscription activation requires verified payment + locally-derived billing-period evidence.
 conn.execute('''INSERT INTO academy_subscriptions
   (id,tenant_id,user_id,plan_id,price_id,status,created_at,updated_at)
   VALUES ('SUBP','T1','U1','PLAN1','PRICE2','pending_payment',?,?)''',(now,now))
@@ -106,9 +106,13 @@ try:
     raise AssertionError('paid subscription activated without provider')
 except sqlite3.IntegrityError:
     pass
-conn.execute('''INSERT INTO academy_subscriptions
-  (id,tenant_id,user_id,plan_id,price_id,status,provider,provider_subscription_id,activation_reference,started_at,current_period_start,current_period_end,created_at,updated_at)
-  VALUES ('SUBOK','T1','U2','PLAN1','PRICE2','active','mercado_pago','MP-1','webhook:evt-1',?,?, '2026-10-07T19:00:00.000Z',?,?)''',(now,now,now,now))
+try:
+    conn.execute('''INSERT INTO academy_subscriptions
+      (id,tenant_id,user_id,plan_id,price_id,status,provider,provider_subscription_id,activation_reference,started_at,current_period_start,current_period_end,created_at,updated_at)
+      VALUES ('SUB_PROVIDER_ONLY','T1','U2','PLAN1','PRICE2','active','mercado_pago','MP-1','webhook:evt-1',?,?, '2026-10-07T19:00:00.000Z',?,?)''',(now,now,now,now))
+    raise AssertionError('paid subscription activated from provider fields without derived billing evidence')
+except sqlite3.IntegrityError:
+    pass
 
 # Free/contractual activation still requires an explicit activation reference, but not a fake gateway.
 try:
